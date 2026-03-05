@@ -1,7 +1,6 @@
 ---
-id: version-3.0.0-custom-logger
+id: custom-logger
 title: Custom Logger
-original_id: custom-logger
 ---
 
 The logger is customized using log creators. A log creator is a function which receives a log level and returns a log function. The log function receives namespace, level, label, and log.

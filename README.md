@@ -43,8 +43,9 @@ KafkaJS is a modern [Apache Kafka](https://kafka.apache.org/) client for Node.js
 
 * Producer with idempotent and transactional support
 * Consumer groups with pause, resume, and seek
-* Share Groups / Kafka Queues support (Kafka 4.0+ / KIP-932) - API key registration
+* Share Groups / Kafka Queues (Kafka 4.0+ / KIP-932) - full protocol support for ShareFetch, ShareAcknowledge, ShareGroupHeartbeat, ShareGroupDescribe
 * KRaft-native support (ZooKeeper removed since Kafka 4.0)
+* KRaft voter management (AddRaftVoter, RemoveRaftVoter, UpdateRaftVoter)
 * Transactional support for producers and consumers
 * Message headers (thread-safe RecordHeader)
 * GZIP compression
@@ -53,7 +54,8 @@ KafkaJS is a modern [Apache Kafka](https://kafka.apache.org/) client for Node.js
 * Support for SCRAM-SHA-256 and SCRAM-SHA-512
 * Support for AWS IAM authentication
 * Admin client with partition reassignment, ACL management, and more
-* Comprehensive error code coverage through Kafka 4.2.0
+* All 84 Kafka API keys (0-83) fully implemented through Kafka 4.2.0
+* UUID wire type support for Share Group and KRaft topic/voter identifiers
 
 ### <a name="getting-started"></a> Getting Started
 

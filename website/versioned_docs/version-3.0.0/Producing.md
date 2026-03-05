@@ -1,7 +1,6 @@
 ---
-id: version-3.0.0-producing
+id: producing
 title: Producing Messages
-original_id: producing
 ---
 
 To publish messages to Kafka you have to create a producer. Simply call the `producer` function of the client to create it:
@@ -218,12 +217,12 @@ KafkaJS ships with 2 partitioners: `DefaultPartitioner` and `LegacyPartitioner`.
 
 The `DefaultPartitioner` should be compatible with the default partitioner that ships with the Java Kafka client. This can be important to meet the [co-partitioning requirement](https://docs.confluent.io/current/ksql/docs/developer-guide/partition-data.html#co-partitioning-requirements) when joining multiple topics.
 
-> **Important**
->
+> 🚨 **Important**  🚨
+> 
 > **The `LegacyPartitioner` was the default until v2.0.0. If you are upgrading from a version
 older and want to retain the previous partitioning behavior, use the `LegacyPartitioner`
 by importing it and providing it to the Producer constructor:**
->
+> 
 > ```javascript
 > const { Partitioners } = require('kafkajs')
 > kafka.producer({ createPartitioner: Partitioners.LegacyPartitioner })

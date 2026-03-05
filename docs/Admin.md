@@ -814,3 +814,91 @@ OngoingPartitionReassignment Structure:
 }
 ```
 **Note:** If a partition is not going through a reassignment, its AddingReplicas and RemovingReplicas fields will simply be empty.
+
+## <a name="elect-leaders"></a> Elect Leaders
+
+Triggers a leader election for one or more partitions. This method requires Kafka 2.4+.
+
+```javascript
+await admin.electLeaders({
+  electionType: 0, // 0 = PREFERRED, 1 = UNCLEAN
+  topicPartitions: [{ topic: 'my-topic', partitions: [0, 1] }], // null = all partitions
+  timeout: 30000,
+})
+```
+
+## <a name="delete-offsets"></a> Delete Offsets
+
+Deletes consumer group offsets for specific topic partitions. The consumer group must not have any active members.
+
+```javascript
+await admin.deleteOffsets({
+  groupId: 'my-group',
+  topic: 'my-topic',
+  partitions: [{ partition: 0 }, { partition: 1 }],
+})
+```
+
+## <a name="describe-log-dirs"></a> Describe Log Dirs
+
+Returns information about log directories on all brokers.
+
+```javascript
+const logDirs = await admin.describeLogDirs({ topics: ['my-topic'] })
+// Returns log directory info for each broker
+```
+
+## <a name="describe-producers"></a> Describe Producers
+
+Returns information about active producers for the specified topic partitions.
+
+```javascript
+const result = await admin.describeProducers({
+  topics: [{ topic: 'my-topic', partitions: [0, 1] }],
+})
+```
+
+## <a name="describe-transactions"></a> Describe Transactions
+
+Returns details about active transactions.
+
+```javascript
+const result = await admin.describeTransactions({
+  transactionalIds: ['my-txn-id-1', 'my-txn-id-2'],
+})
+```
+
+## <a name="list-transactions"></a> List Transactions
+
+Lists active transactions, optionally filtering by state or producer ID.
+
+```javascript
+const result = await admin.listTransactions({
+  stateFilters: ['Ongoing'],
+  producerIdFilters: [],
+})
+```
+
+## <a name="share-group-describe"></a> Describe Share Groups
+
+> **Requires Kafka 4.0+**
+
+Describes one or more Share Groups (KIP-932). Share Groups provide queue-like consumption where multiple consumers process records from the same partitions concurrently with per-record acknowledgement.
+
+```javascript
+const result = await admin.shareGroupDescribe({
+  groupIds: ['my-share-group'],
+  includeAuthorizedOperations: false,
+})
+
+// result.groups[0]:
+// {
+//   groupId: 'my-share-group',
+//   groupState: 'Stable',
+//   groupEpoch: 1,
+//   assignorName: 'uniform',
+//   topics: [{ topicId, topicName, partitions: [...] }],
+//   members: [{ memberId, rackId, memberEpoch, clientId, clientHost, subscribedTopicNames, assignment }],
+//   authorizedOperations: 0,
+// }
+```

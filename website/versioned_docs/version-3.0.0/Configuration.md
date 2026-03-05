@@ -1,7 +1,6 @@
 ---
-id: version-3.0.0-configuration
+id: configuration
 title: Client Configuration
-original_id: configuration
 ---
 
 The client must be configured with at least one broker. The brokers on the list are considered seed brokers and are only used to bootstrap the client and load initial metadata.
@@ -22,7 +21,7 @@ KafkaJS automatically negotiates protocol versions with the broker. No manual co
 
 | KafkaJS Version | Kafka Broker Versions | Node.js |
 |----------------|----------------------|---------|
-| 2.3.0+         | 1.0.0 - 4.2.0       | >= 14.0 |
+| 3.0.0+         | 1.0.0 - 4.2.0       | >= 14.0 |
 | 2.0.0 - 2.2.4  | 0.11.0 - 3.x        | >= 12.0 |
 
 ### KRaft Mode (Kafka 4.0+)
@@ -285,8 +284,8 @@ If an authentication mechanism is not supported out of the box in KafkaJS, a cus
 mechanism can be introduced as a plugin:
 
 ```js
-{
-  sasl: {
+{ 
+  sasl: { 
       mechanism: <mechanism name>,
       authenticationProvider: ({ host, port, logger, saslAuthenticate }) => { authenticate: () => Promise<void> }
   }

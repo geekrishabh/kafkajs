@@ -581,6 +581,118 @@ export type Admin = {
     topics?: TopicPartitions[]
     timeout?: number
   }): Promise<ListPartitionReassignmentsResponse>
+  electLeaders(options?: {
+    electionType?: number
+    topicPartitions?: Array<{ topic: string; partitions: number[] }> | null
+    timeout?: number
+  }): Promise<any>
+  deleteOffsets(options: {
+    groupId: string
+    topic: string
+    partitions: number[]
+  }): Promise<any>
+  describeLogDirs(options?: {
+    topics?: Array<{ topic: string; partitions: number[] }> | null
+  }): Promise<{
+    brokers: Array<{
+      brokerId: number
+      throttleTime: number
+      results: Array<{
+        errorCode: number
+        logDir: string
+        topics: Array<{
+          name: string
+          partitions: Array<{
+            partitionIndex: number
+            partitionSize: string
+            offsetLag: string
+            isFutureKey: boolean
+          }>
+        }>
+      }>
+    }>
+  }>
+  describeProducers(options: {
+    topics: Array<{ topic: string; partitions: number[] }>
+  }): Promise<{
+    topics: Array<{
+      name: string
+      partitions: Array<{
+        partitionIndex: number
+        errorCode: number
+        activeProducers: Array<{
+          producerId: string
+          producerEpoch: number
+          lastSequence: number
+          lastTimestamp: string
+          coordinatorEpoch: number
+          currentTxnStartOffset: string
+        }>
+      }>
+    }>
+  }>
+  describeTransactions(options: {
+    transactionalIds: string[]
+  }): Promise<{
+    transactionStates: Array<{
+      errorCode: number
+      transactionalId: string
+      state: string
+      producerId: string
+      producerEpoch: number
+      transactionTimeoutMs: number
+      transactionStartTimeMs: string
+      topics: Array<{
+        topic: string
+        partitions: number[]
+      }>
+    }>
+  }>
+  listTransactions(options?: {
+    stateFilters?: string[]
+    producerIdFilters?: number[]
+  }): Promise<{
+    transactionStates: Array<{
+      transactionalId: string
+      producerId: string
+      transactionState: string
+    }>
+  }>
+  shareGroupDescribe(options: {
+    groupIds: string[]
+    includeAuthorizedOperations?: boolean
+  }): Promise<{
+    throttleTime: number
+    groups: Array<{
+      errorCode: number
+      errorMessage: string | null
+      groupId: string
+      groupState: string
+      groupEpoch: number
+      assignmentEpoch: number
+      assignorName: string
+      topics: Array<{
+        topicId: string | null
+        topicName: string
+        partitions: Array<{
+          partitionIndex: number
+          startOffset: string
+          stateEpoch: number
+          leaderEpoch: number
+        }>
+      }>
+      members: Array<{
+        memberId: string
+        rackId: string | null
+        memberEpoch: number
+        clientId: string
+        clientHost: string
+        subscribedTopicNames: string[]
+        assignment: Array<{ topicId: string | null; partitions: number[] }>
+      }>
+      authorizedOperations: number
+    }>
+  }>
   logger(): Logger
   on(
     eventName: AdminEvents['CONNECT'],

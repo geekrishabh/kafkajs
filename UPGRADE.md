@@ -174,15 +174,31 @@ Share Groups (also called "Kafka Queues") allow multiple consumers to cooperativ
 
 ### Share Group API Keys
 
-KafkaJS now registers the following Share Group API keys for protocol negotiation:
+KafkaJS v3.0.0 includes full protocol implementations for all Share Group APIs:
 
-- `ShareGroupHeartbeat` (API key 76)
-- `ShareGroupDescribe` (API key 77)
-- `ShareFetch` (API key 78)
-- `ShareAcknowledge` (API key 79)
-- `ReadShareGroupStateSummary` (API key 83)
+- `ShareGroupHeartbeat` (API key 76) - Member heartbeats with topic/partition assignment
+- `ShareGroupDescribe` (API key 77) - Describe share group state, members, and assignments
+- `ShareFetch` (API key 78) - Fetch records in share group mode with per-record acknowledgement
+- `ShareAcknowledge` (API key 79) - Acknowledge, release, or reject individual records
+- `ReadShareGroupStateSummary` (API key 83) - Read share group partition state summary
 
-> **Note:** Full Share Group protocol implementation (request/response encoding) is planned for a future KafkaJS release. The API keys are registered to enable proper version negotiation with Kafka 4.2.0 brokers.
+These APIs use the flexible version wire format (KIP-482) and UUID-based topic identifiers.
+
+### Share Group Admin Methods
+
+```javascript
+const admin = kafka.admin()
+await admin.connect()
+
+// Describe share groups
+const result = await admin.shareGroupDescribe({
+  groupIds: ['my-share-group'],
+  includeAuthorizedOperations: false,
+})
+// result.groups[0].groupState, .members, .topics, etc.
+
+await admin.disconnect()
+```
 
 ---
 
@@ -646,14 +662,14 @@ KAFKA_BROKERS=broker1:9092,broker2:9092 node examples/kraft-producer.js
 
 1. **Automatic version negotiation**: KafkaJS automatically negotiates the best protocol version. No manual version configuration needed.
 2. **Backward compatibility**: KafkaJS 3.x works with Kafka 4.2.0 through protocol negotiation. The broker will use mutually supported versions.
-3. **New API support**: Share Group APIs (keys 76-79, 83) and other new APIs are registered for version negotiation but full protocol implementation is in progress.
+3. **New API support**: Share Group APIs (keys 76-79, 83) and KRaft voter management APIs (keys 80-82) are fully implemented with request/response encoding.
 4. **Error codes**: All Kafka 4.2.0 error codes are now recognized. Previously unknown error codes from newer brokers would result in `KAFKAJS_UNKNOWN_ERROR_CODE`.
 
 ---
 
 ## Dependency Upgrades (v3.0.0)
 
-KafkaJS v3.0.0 bumps the package version from 2.2.4 to 2.3.0. The minimum Node.js version remains **14.0.0**.
+KafkaJS v3.0.0 bumps the package version from 2.2.4 to 3.0.0. The minimum Node.js version remains **14.0.0**.
 
 ### Updated devDependencies
 
@@ -685,11 +701,14 @@ These upgrades are deferred to a future major release (v3.0.0) where breaking de
 
 - **Kafka 4.2.0 support**: Full protocol negotiation with Kafka 4.2.0 brokers
 - **Protocol version upgrades**: Newer API versions with flexible encoding (see [Protocol Version Upgrades](#protocol-version-upgrades))
+- **Share Groups (KIP-932)**: Full protocol implementation for ShareGroupHeartbeat, ShareGroupDescribe, ShareFetch, ShareAcknowledge, and ReadShareGroupStateSummary
+- **KRaft voter management**: Full protocol implementation for AddRaftVoter, RemoveRaftVoter, and UpdateRaftVoter
+- **UUID wire type support**: Encoder/decoder support for 128-bit UUID fields used by Share Groups and KRaft APIs
 - **IncrementalAlterConfigs API**: New admin method for incremental config changes
 - **KRaft mode**: Docker Compose and test support for Kafka 4.2 KRaft clusters
 - **New error codes**: All error codes through Kafka 4.2.0 (codes 89-127)
-- **New API keys**: All API keys through Kafka 4.2.0 (keys 47-83)
-- **TypeScript updates**: New types for `ConfigOperationTypes`, `IncrementalAlterConfigs*`, `leaderEpoch`, `groupInstanceId`
+- **All 84 API keys implemented**: Every Kafka API key through 4.2.0 (keys 0-83) has a protocol handler
+- **TypeScript updates**: New types for `ConfigOperationTypes`, `IncrementalAlterConfigs*`, `shareGroupDescribe`, `leaderEpoch`, `groupInstanceId`
 - **Leader epochs**: Partition metadata now includes `leaderEpoch` when using Metadata v7+
 
 ---

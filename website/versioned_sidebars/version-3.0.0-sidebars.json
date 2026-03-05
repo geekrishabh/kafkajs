@@ -21,7 +21,8 @@
     ],
     "API Reference": [],
     "Migration Guides": [
-      "version-3.0.0-migration-guide-v2.0.0"
+      "version-3.0.0-migration-guide-v2.0.0",
+      "version-3.0.0-migration-guide-v3.0.0"
     ],
     "Developing KafkaJS": [
       "version-3.0.0-contribution-guide",

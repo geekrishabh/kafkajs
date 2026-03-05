@@ -43,6 +43,7 @@ module.exports = {
   DescribeDelegationToken: 41,
   DeleteGroups: 42, // ApiVersions v2 on Kafka 1.0
   ElectPreferredLeaders: 43,
+  ElectLeaders: 43, // Alias: renamed from ElectPreferredLeaders in Kafka 2.4
   IncrementalAlterConfigs: 44,
   AlterPartitionReassignments: 45,
   ListPartitionReassignments: 46,
