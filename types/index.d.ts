@@ -93,6 +93,12 @@ type SASLMechanismOptionsMap = {
     sessionToken?: string
   }
   oauthbearer: { oauthBearerProvider: () => Promise<OauthbearerProviderResponse> }
+  gssapi: {
+    serviceName?: string
+    principal?: string
+    keytab?: string
+    kerberosServicePrincipal?: string
+  }
 }
 
 export type SASLMechanism = keyof SASLMechanismOptionsMap
