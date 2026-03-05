@@ -12,6 +12,7 @@ const AclPermissionTypes = require('./src/protocol/aclPermissionTypes')
 const ResourcePatternTypes = require('./src/protocol/resourcePatternTypes')
 const { isRebalancing, isKafkaJSError, ...errors } = require('./src/errors')
 const { LEVELS } = require('./src/loggers')
+const deadLetterQueue = require('./src/consumer/deadLetterQueue')
 
 module.exports = {
   Kafka,
@@ -28,5 +29,6 @@ module.exports = {
   AclPermissionTypes,
   ResourcePatternTypes,
   ConfigSource,
+  deadLetterQueue,
   ...errors,
 }

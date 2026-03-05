@@ -1466,6 +1466,18 @@ export type ConsumerEachBatchPayload = EachBatchPayload
 export type EachBatchHandler = (payload: EachBatchPayload) => Promise<void>
 export type EachMessageHandler = (payload: EachMessagePayload) => Promise<void>
 
+export interface DeadLetterQueueConfig {
+  producer: Producer
+  topic: string
+  maxRetries?: number
+  onOriginalMessageFailed?(payload: EachMessagePayload, error: Error): Promise<void>
+  createDLQMessage?(error: Error, payload: EachMessagePayload): Message
+}
+
+export function deadLetterQueue(
+  config: DeadLetterQueueConfig
+): (handler: EachMessageHandler) => EachMessageHandler
+
 export type ConsumerRunConfig = {
   autoCommit?: boolean
   autoCommitInterval?: number | null
