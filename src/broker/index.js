@@ -632,6 +632,34 @@ module.exports = class Broker {
   }
 
   /**
+   * Send an `IncrementalAlterConfigs` request to incrementally alter configs.
+   * Unlike `AlterConfigs`, this only changes the specified config entries without
+   * replacing all configs for the resource.
+   *
+   * @public
+   * @param {object} request
+   * @param {Array} request.resources
+   *                 e.g: [{
+   *                   type: RESOURCE_TYPES.TOPIC,
+   *                   name: 'topic-name',
+   *                   configEntries: [{
+   *                     name: 'cleanup.policy',
+   *                     configOperation: 0, // SET=0, DELETE=1, APPEND=2, SUBTRACT=3
+   *                     value: 'compact',
+   *                   }]
+   *                 }]
+   * @param {boolean} [request.validateOnly=false]
+   * @returns {Promise}
+   */
+  async incrementalAlterConfigs({ resources, validateOnly = false }) {
+    const incrementalAlterConfigs = this.lookupRequest(
+      apiKeys.IncrementalAlterConfigs,
+      requests.IncrementalAlterConfigs
+    )
+    return await this[PRIVATE.SEND_REQUEST](incrementalAlterConfigs({ resources, validateOnly }))
+  }
+
+  /**
    * Send an `InitProducerId` request to fetch a PID and bump the producer epoch.
    *
    * Request should be made to the transaction coordinator.

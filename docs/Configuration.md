@@ -15,6 +15,19 @@ const kafka = new Kafka({
 })
 ```
 
+## Kafka Version Compatibility
+
+KafkaJS automatically negotiates protocol versions with the broker. No manual configuration is needed.
+
+| KafkaJS Version | Kafka Broker Versions | Node.js |
+|----------------|----------------------|---------|
+| 3.0.0+         | 1.0.0 - 4.2.0       | >= 14.0 |
+| 2.0.0 - 2.2.4  | 0.11.0 - 3.x        | >= 12.0 |
+
+### KRaft Mode (Kafka 4.0+)
+
+Apache Kafka 4.0 removed ZooKeeper. All Kafka 4.x clusters run in **KRaft mode**. KafkaJS connects to brokers (not ZooKeeper), so no client code changes are required. The client works identically with KRaft and ZooKeeper-based clusters.
+
 ## Client Id
 A logical identifier of an application. Can be used by brokers to apply quotas or trace requests to a specific application. Example: `booking-events-processor`.
 

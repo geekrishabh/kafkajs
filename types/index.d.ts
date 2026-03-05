@@ -140,6 +140,7 @@ export type PartitionMetadata = {
   partitionErrorCode: number
   partitionId: number
   leader: number
+  leaderEpoch?: number
   replicas: number[]
   isr: number[]
   offlineReplicas?: number[]
@@ -151,6 +152,7 @@ export interface IHeaders {
 
 export interface ConsumerConfig {
   groupId: string
+  groupInstanceId?: string
   partitionAssigners?: PartitionAssigner[]
   metadataMaxAge?: number
   sessionTimeout?: number
@@ -369,6 +371,32 @@ export interface IResourceConfig {
   configEntries: IResourceConfigEntry[]
 }
 
+export enum ConfigOperationTypes {
+  SET = 0,
+  DELETE = 1,
+  APPEND = 2,
+  SUBTRACT = 3,
+}
+
+export interface IncrementalAlterConfigsResource {
+  type: ConfigResourceTypes
+  name: string
+  configEntries: IncrementalAlterConfigEntry[]
+}
+
+export interface IncrementalAlterConfigEntry {
+  name: string
+  configOperation: ConfigOperationTypes
+  value: string
+}
+
+export interface IncrementalAlterConfigsResponse {
+  errorCode: number
+  errorMessage: string
+  resourceType: number
+  resourceName: string
+}
+
 type ValueOf<T> = T[keyof T]
 
 export type AdminEvents = {
@@ -534,6 +562,10 @@ export type Admin = {
     includeSynonyms: boolean
   }): Promise<DescribeConfigResponse>
   alterConfigs(configs: { validateOnly: boolean; resources: IResourceConfig[] }): Promise<any>
+  incrementalAlterConfigs(configs: {
+    validateOnly?: boolean
+    resources: IncrementalAlterConfigsResource[]
+  }): Promise<{ resources: IncrementalAlterConfigsResponse[] }>
   listGroups(): Promise<{ groups: GroupOverview[] }>
   deleteGroups(groupIds: string[]): Promise<DeleteGroupsResult[]>
   describeGroups(groupIds: string[]): Promise<GroupDescriptions>
@@ -835,6 +867,7 @@ export type MemberDescription = {
   clientHost: string
   clientId: string
   memberId: string
+  groupInstanceId?: string
   memberAssignment: Buffer
   memberMetadata: Buffer
 }

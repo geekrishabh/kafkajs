@@ -764,6 +764,83 @@ module.exports = ({
     })
   }
 
+  const incrementalAlterConfigs = async ({ resources, validateOnly }) => {
+    if (!resources || !Array.isArray(resources)) {
+      throw new KafkaJSNonRetriableError(`Invalid resources array ${resources}`)
+    }
+
+    if (resources.length === 0) {
+      throw new KafkaJSNonRetriableError('Resources array cannot be empty')
+    }
+
+    const validResourceTypes = Object.values(CONFIG_RESOURCE_TYPES)
+    const invalidType = resources.find(r => !validResourceTypes.includes(r.type))
+
+    if (invalidType) {
+      throw new KafkaJSNonRetriableError(
+        `Invalid resource type ${invalidType.type}: ${JSON.stringify(invalidType)}`
+      )
+    }
+
+    const invalidName = resources.find(r => !r.name || typeof r.name !== 'string')
+
+    if (invalidName) {
+      throw new KafkaJSNonRetriableError(
+        `Invalid resource name ${invalidName.name}: ${JSON.stringify(invalidName)}`
+      )
+    }
+
+    const invalidConfigs = resources.find(r => !Array.isArray(r.configEntries))
+
+    if (invalidConfigs) {
+      const { configEntries } = invalidConfigs
+      throw new KafkaJSNonRetriableError(
+        `Invalid resource configEntries ${configEntries}: ${JSON.stringify(invalidConfigs)}`
+      )
+    }
+
+    const retrier = createRetry(retry)
+
+    return retrier(async (bail, retryCount, retryTime) => {
+      try {
+        await cluster.refreshMetadata()
+        const controller = await cluster.findControllerBroker()
+        const resourcerByBroker = await groupResourcesByBroker({
+          resources,
+          defaultBroker: controller,
+        })
+
+        const incrementalAlterConfigsAction = async broker => {
+          const targetBroker = broker || controller
+          return targetBroker.incrementalAlterConfigs({
+            resources: resourcerByBroker.get(targetBroker),
+            validateOnly: !!validateOnly,
+          })
+        }
+
+        const brokers = Array.from(resourcerByBroker.keys())
+        const responses = await Promise.all(brokers.map(incrementalAlterConfigsAction))
+        const responseResources = responses.reduce(
+          (result, { responses: r }) => [...result, ...r],
+          []
+        )
+
+        return { resources: responseResources }
+      } catch (e) {
+        if (e.type === 'NOT_CONTROLLER') {
+          logger.warn('Could not alter configs incrementally', {
+            error: e.message,
+            retryCount,
+            retryTime,
+          })
+          throw e
+        }
+
+        bail(e)
+      }
+    })
+  }
+
   /**
    * Fetch metadata for provided topics.
    *
@@ -1591,6 +1668,7 @@ module.exports = ({
     resetOffsets,
     describeConfigs,
     alterConfigs,
+    incrementalAlterConfigs,
     on,
     logger: getLogger,
     listGroups,

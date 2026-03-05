@@ -135,6 +135,7 @@ await admin.fetchTopicMetadata({ topics: <Array<String>> })
     partitionErrorCode: <Number>, // default: 0
     partitionId: <Number>,
     leader: <Number>,
+    leaderEpoch: <Number>,        // Available with Kafka 2.4+ (Metadata v7+)
     replicas: <Array<Number>>,
     isr: <Array<Number>>,
 }
@@ -679,6 +680,79 @@ Be aware that the security features might be disabled in your cluster. In that c
 
 ```sh
 KafkaJSProtocolError: Security features are disabled
+```
+
+## <a name="incremental-alter-configs"></a> Incremental Alter Configs
+
+Incrementally update the configuration for the specified resources. Unlike `alterConfigs`, this method only changes the specified config entries without replacing all configs. This is the recommended way to modify configs on Kafka 2.3+ brokers.
+
+```javascript
+await admin.incrementalAlterConfigs({
+    validateOnly: false,
+    resources: <IncrementalAlterConfigsResource[]>
+})
+```
+
+`IncrementalAlterConfigsResource` structure:
+
+```javascript
+{
+    type: <ConfigResourceType>,
+    name: <String>,
+    configEntries: <IncrementalAlterConfigEntry[]>
+}
+```
+
+`IncrementalAlterConfigEntry` structure:
+
+```javascript
+{
+    name: <String>,
+    configOperation: <ConfigOperationTypes>,  // 0=SET, 1=DELETE, 2=APPEND, 3=SUBTRACT
+    value: <String>
+}
+```
+
+Config operation types:
+
+| Operation | Value | Description |
+|-----------|-------|-------------|
+| SET       | 0     | Set the value of the config entry |
+| DELETE    | 1     | Reset the config entry to its default value |
+| APPEND   | 2     | Append the value to the existing config (for list-type configs) |
+| SUBTRACT  | 3     | Remove the value from the existing config (for list-type configs) |
+
+Example:
+
+```javascript
+const { ConfigResourceTypes, ConfigOperationTypes } = require('kafkajs')
+
+await admin.incrementalAlterConfigs({
+    resources: [{
+        type: ConfigResourceTypes.TOPIC,
+        name: 'topic-name',
+        configEntries: [
+            { name: 'cleanup.policy', configOperation: ConfigOperationTypes.SET, value: 'compact' },
+            { name: 'max.message.bytes', configOperation: ConfigOperationTypes.DELETE, value: '' },
+        ]
+    }]
+})
+```
+
+Take a look at [configResourceTypes](https://github.com/tulios/kafkajs/blob/master/src/protocol/configResourceTypes.js) for a complete list of resources.
+
+Example response:
+
+```javascript
+{
+    resources: [{
+        errorCode: 0,
+        errorMessage: null,
+        resourceName: 'topic-name',
+        resourceType: 2,
+    }],
+    throttleTime: 0,
+}
 ```
 
 ## <a name="alter-partition-reassignments"></a> Alter Partition Reassignments
