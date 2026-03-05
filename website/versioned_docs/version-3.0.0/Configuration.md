@@ -16,6 +16,42 @@ const kafka = new Kafka({
 })
 ```
 
+## Full Configuration Reference
+
+```javascript
+const kafka = new Kafka({
+  brokers: ['kafka1:9092', 'kafka2:9092'], // Required
+  clientId: 'my-app',                       // Optional
+  connectionTimeout: 1000,                  // Optional
+  authenticationTimeout: 10000,             // Optional
+  reauthenticationThreshold: 10000,         // Optional
+  requestTimeout: 30000,                    // Optional
+  enforceRequestTimeout: true,              // Optional
+  retry: { retries: 5 },                    // Optional
+  ssl: true,                                // Optional
+  sasl: { mechanism: 'plain', ... },        // Optional
+  socketFactory: mySocketFactory,           // Optional
+  logLevel: logLevel.INFO,                  // Optional
+  logCreator: myLogCreator,                 // Optional
+})
+```
+
+| option                    | description                                                                                                                                                                             | default       | type | required |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---- | -------- |
+| brokers                   | List of seed brokers, or an async function that resolves to a broker array. See [Broker discovery](#broker-discovery)                                                                   |               | `String[] \| () => Promise<String[]>` | **Yes** |
+| clientId                  | A logical identifier of an application. See [Client Id](#client-id)                                                                                                                     | `undefined`   | `String` | No |
+| connectionTimeout         | Time in ms to wait for a successful connection                                                                                                                                          | `1000`        | `Number` | No |
+| authenticationTimeout     | Timeout in ms for authentication requests                                                                                                                                               | `10000`       | `Number` | No |
+| reauthenticationThreshold | When periodic reauthentication is configured on the broker, reauthenticate when this many ms remain of session lifetime                                                                 | `10000`       | `Number` | No |
+| requestTimeout            | Time in ms to wait for a successful request                                                                                                                                             | `30000`       | `Number` | No |
+| enforceRequestTimeout     | Whether to enforce the request timeout. Set to `false` to disable                                                                                                                       | `true`        | `Boolean` | No |
+| retry                     | Retry mechanism configuration. See [Default Retry](#default-retry)                                                                                                                      | `{ retries: 5 }` | `Object` | No |
+| ssl                       | SSL/TLS configuration. `true` to enable with defaults, or an object with [tls.connect options](https://nodejs.org/api/tls.html)                                                        | `undefined`   | `Boolean \| tls.ConnectionOptions` | No |
+| sasl                      | SASL authentication configuration. See [SASL](#sasl)                                                                                                                                    | `undefined`   | `Object` | No |
+| socketFactory             | Custom socket factory function. See [Custom socket factory](#custom-socket-factory)                                                                                                     | `undefined`   | `Function` | No |
+| logLevel                  | Log level: `NOTHING`, `ERROR`, `WARN`, `INFO`, `DEBUG`                                                                                                                                  | `logLevel.INFO` | `logLevel` | No |
+| logCreator                | Custom log creator function. See [Custom logging](CustomLogger.md)                                                                                                                      | built-in STDOUT JSON logger | `Function` | No |
+
 ## Kafka Version Compatibility
 
 KafkaJS automatically negotiates protocol versions with the broker. No manual configuration is needed.
@@ -100,16 +136,17 @@ Refer to [TLS create secure context](https://nodejs.org/dist/latest-v8.x/docs/ap
 
 ## SASL
 
-Kafka has support for using SASL to authenticate clients. The `sasl` option can be used to configure the authentication mechanism. Currently, KafkaJS supports `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, and `AWS` mechanisms.
+Kafka has support for using SASL to authenticate clients. The `sasl` option can be used to configure the authentication mechanism. Currently, KafkaJS supports `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEARER`, `AWS`, and `GSSAPI` (Kerberos) mechanisms.
 
 Note that the broker may be configured to reject your authentication attempt if you are not using TLS, even if the credentials themselves are valid. In particular, never authenticate without TLS when using `PLAIN` as your authentication mechanism, as that will transmit your credentials unencrypted in plain text. See [SSL](#ssl) for more information on how to enable TLS.
 
 ### Options
 
-| option                    | description                                                                                                                                                                             | default |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| authenticationTimeout     | Timeout in ms for authentication requests                                                                                                                                               | `10000`  |
-| reauthenticationThreshold | When periodic reauthentication (`connections.max.reauth.ms`) is configured on the broker side, reauthenticate when `reauthenticationThreshold` milliseconds remain of session lifetime. | `10000` |
+| option                    | description                                                                                                                                                                             | default | type | required |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---- | -------- |
+| mechanism                 | The SASL mechanism to use: `'plain'`, `'scram-sha-256'`, `'scram-sha-512'`, `'oauthbearer'`, `'aws'`, `'gssapi'`                                                                       |         | `String` | **Yes** |
+| authenticationTimeout     | Timeout in ms for authentication requests                                                                                                                                               | `10000` | `Number` | No |
+| reauthenticationThreshold | When periodic reauthentication (`connections.max.reauth.ms`) is configured on the broker side, reauthenticate when `reauthenticationThreshold` milliseconds remain of session lifetime. | `10000` | `Number` | No |
 
 ### PLAIN/SCRAM Example
 
@@ -127,6 +164,12 @@ new Kafka({
   },
 })
 ```
+
+| option   | description       | type     | required |
+|----------|-------------------|----------|----------|
+| mechanism | `'plain'`, `'scram-sha-256'`, or `'scram-sha-512'` | `String` | **Yes** |
+| username | SASL username     | `String` | **Yes** |
+| password | SASL password     | `String` | **Yes** |
 
 ### OAUTHBEARER Example
 
@@ -159,6 +202,11 @@ async function that is used to return the OAuth bearer token.
 The OAuth bearer token must be an object with properties value and
 (optionally) extensions, that will be sent during the SASL/OAUTHBEARER
 request.
+
+| option              | description                                     | type       | required |
+|---------------------|-------------------------------------------------|------------|----------|
+| mechanism           | Must be `'oauthbearer'`                         | `String`   | **Yes** |
+| oauthBearerProvider | Async function returning `{ value: string }`    | `Function` | **Yes** |
 
 The implementation of the oauthBearerProvider must take care that tokens are
 reused and refreshed when appropriate. An example implementation using
@@ -256,6 +304,14 @@ new Kafka({
 })
 ```
 
+| option                | description                                           | type     | required |
+|-----------------------|-------------------------------------------------------|----------|----------|
+| mechanism             | Must be `'aws'`                                       | `String` | **Yes** |
+| authorizationIdentity | The `aws:userid` of the IAM identity (UserId/RoleId)  | `String` | **Yes** |
+| accessKeyId           | AWS access key ID                                     | `String` | **Yes** |
+| secretAccessKey       | AWS secret access key                                 | `String` | **Yes** |
+| sessionToken          | AWS session token (for temporary credentials)          | `String` | No |
+
 For more information on the basics of IAM credentials and authentication, see the
 [AWS Security Credentials - Access Keys](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) page.
 
@@ -296,12 +352,13 @@ new Kafka({
 })
 ```
 
-| option                   | description                                                      | default   |
-| -------------------------| ---------------------------------------------------------------- | --------- |
-| serviceName              | The Kerberos service name                                        | `'kafka'` |
-| principal                | The client Kerberos principal                                    |           |
-| keytab                   | Path to the keytab file                                          |           |
-| kerberosServicePrincipal | Override the full service principal (e.g., `kafka/host@REALM`)   |           |
+| option                   | description                                                      | default   | type     | required |
+| -------------------------| ---------------------------------------------------------------- | --------- | -------- | -------- |
+| mechanism                | Must be `'gssapi'`                                               |           | `String` | **Yes** |
+| serviceName              | The Kerberos service name                                        | `'kafka'` | `String` | No |
+| principal                | The client Kerberos principal                                    |           | `String` | No |
+| keytab                   | Path to the keytab file                                          |           | `String` | No |
+| kerberosServicePrincipal | Override the full service principal (e.g., `kafka/host@REALM`)   |           | `String` | No |
 
 **Broker configuration** (`server.properties`):
 
@@ -326,13 +383,27 @@ If an authentication mechanism is not supported out of the box in KafkaJS, a cus
 mechanism can be introduced as a plugin:
 
 ```js
-{ 
-  sasl: { 
+{
+  sasl: {
       mechanism: <mechanism name>,
       authenticationProvider: ({ host, port, logger, saslAuthenticate }) => { authenticate: () => Promise<void> }
   }
 }
 ```
+
+| option                 | description                                                        | type       | required |
+|------------------------|--------------------------------------------------------------------|------------|----------|
+| mechanism              | Custom mechanism name string                                       | `String`   | **Yes** |
+| authenticationProvider | Function returning an `Authenticator` with an `authenticate` method | `Function` | **Yes** |
+
+The `authenticationProvider` receives:
+
+| argument          | description                                   | type       |
+|-------------------|-----------------------------------------------|------------|
+| host              | Broker host                                   | `String`   |
+| port              | Broker port                                   | `Number`   |
+| logger            | KafkaJS logger instance                       | `Logger`   |
+| saslAuthenticate  | Function to perform SASL exchange             | `Function` |
 
 See [Custom Authentication Mechanisms](CustomAuthenticationMechanism.md) for more information on how to implement your own
 authentication mechanism.
@@ -371,7 +442,7 @@ new Kafka({
 })
 ```
 
-## Default Retry
+## <a name="default-retry"></a> Default Retry
 
 The `retry` option can be used to set the configuration of the retry mechanism, which is used to retry connections and API calls to Kafka (when using producers or consumers).
 
@@ -382,14 +453,14 @@ If the max number of retries is exceeded the retrier will throw `KafkaJSNumberOf
 
 __Available options:__
 
-| option              | description                                                                                                             | default             |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| maxRetryTime        | Maximum wait time for a retry in milliseconds                                                                           | `30000`             |
-| initialRetryTime    | Initial value used to calculate the retry in milliseconds (This is still randomized following the randomization factor) | `300`               |
-| factor              | Randomization factor                                                                                                    | `0.2`               |
-| multiplier          | Exponential factor                                                                                                      | `2`                 |
-| retries             | Max number of retries per call                                                                                          | `5`                 |
-| restartOnFailure    | Only used in consumer. See [`restartOnFailure`](#restartonfailure)                                                      | `async () => true`  |
+| option              | description                                                                                                             | default             | type       | required |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- | ---------- | -------- |
+| maxRetryTime        | Maximum wait time for a retry in milliseconds                                                                           | `30000`             | `Number`   | No       |
+| initialRetryTime    | Initial value used to calculate the retry in milliseconds (This is still randomized following the randomization factor) | `300`               | `Number`   | No       |
+| factor              | Randomization factor                                                                                                    | `0.2`               | `Number`   | No       |
+| multiplier          | Exponential factor                                                                                                      | `2`                 | `Number`   | No       |
+| retries             | Max number of retries per call                                                                                          | `5`                 | `Number`   | No       |
+| restartOnFailure    | Only used in consumer. See [`restartOnFailure`](#restartonfailure)                                                      | `async () => true`  | `Function` | No       |
 
 Example:
 
@@ -420,6 +491,14 @@ Note that the function will only ever be invoked for what KafkaJS considers retr
 ## Logging
 
 KafkaJS has a built-in `STDOUT` logger which outputs JSON. It also accepts a custom log creator which allows you to integrate your favorite logger library. There are 5 log levels available: `NOTHING`, `ERROR`, `WARN`, `INFO`, and `DEBUG`. `INFO` is configured by default.
+
+| Log Level  | Enum Value | Description |
+|------------|------------|-------------|
+| `NOTHING`  | `0`        | Disables all logging |
+| `ERROR`    | `1`        | Only error messages |
+| `WARN`     | `2`        | Warnings and errors |
+| `INFO`     | `4`        | Informational messages, warnings, and errors (default) |
+| `DEBUG`    | `5`        | All messages including debug information |
 
 ##### Log level
 
@@ -469,6 +548,15 @@ To allow for custom socket configurations, the client accepts an optional `socke
 any socket.
 
 `socketFactory` should be a function that returns an object compatible with [`net.Socket`](https://nodejs.org/api/net.html#net_class_net_socket) (see the [default implementation](https://github.com/tulios/kafkajs/tree/master/src/network/socketFactory.js)).
+
+The function receives:
+
+| argument  | description                                   | type       |
+|-----------|-----------------------------------------------|------------|
+| host      | Broker host                                   | `String`   |
+| port      | Broker port                                   | `Number`   |
+| ssl       | SSL/TLS options (from `tls.ConnectionOptions`) | `Object`   |
+| onConnect | Callback to invoke when connected              | `Function` |
 
 ```javascript
 const { Kafka } = require('kafkajs')

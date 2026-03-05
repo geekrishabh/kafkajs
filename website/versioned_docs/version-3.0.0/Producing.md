@@ -21,15 +21,22 @@ const producer = kafka.producer({
 
 ## Options
 
-| option                 | description                                                                                                                                                                                  | default              |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| createPartitioner      | Take a look at [Custom Partitioner](#custom-partitioner) for more information                                                                                                                | `null`               |
-| retry                  | Take a look at [Producer Retry](#retry) for more information                                                                                                                                 | `null`               |
-| metadataMaxAge         | The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions | `300000` - 5 minutes |
-| allowAutoTopicCreation | Allow topic creation when querying metadata for non-existent topics                                                                                                                          | `true`               |
-| transactionTimeout | The maximum amount of time in ms that the transaction coordinator will wait for a transaction status update from the producer before proactively aborting the ongoing transaction. If this value is larger than the `transaction.max.timeout.ms` setting in the __broker__, the request will fail with a `InvalidTransactionTimeout` error | `60000`                            |
-| idempotent         | _Experimental._ If enabled producer will ensure each message is written exactly once. Acks _must_ be set to -1 ("all"). Retries will default to MAX_SAFE_INTEGER.                                                                                                                                                                          | `false`                            |
-| maxInFlightRequests | Max number of requests that may be in progress at any time. If falsey then no limit.                                    | `null` _(no limit)_ |
+| option                 | description                                                                                                                                                                                  | default              | type       | required |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------- | -------- |
+| createPartitioner      | Take a look at [Custom Partitioner](#custom-partitioner) for more information                                                                                                                | `null`               | `Function` | No       |
+| retry                  | Take a look at [Producer Retry](#retry) for more information                                                                                                                                 | `null`               | `Object`   | No       |
+| metadataMaxAge         | The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions | `300000` (5 min)     | `Number`   | No       |
+| allowAutoTopicCreation | Allow topic creation when querying metadata for non-existent topics                                                                                                                          | `true`               | `Boolean`  | No       |
+| transactionTimeout | The maximum amount of time in ms that the transaction coordinator will wait for a transaction status update from the producer before proactively aborting the ongoing transaction. If this value is larger than the `transaction.max.timeout.ms` setting in the __broker__, the request will fail with a `InvalidTransactionTimeout` error | `60000`              | `Number`   | No       |
+| idempotent         | If enabled, the producer will ensure each message is written exactly once. Acks _must_ be set to -1 ("all"). Retries will default to `MAX_SAFE_INTEGER`. See [Idempotent Producer](#idempotent-producer) | `false`              | `Boolean`  | No       |
+| transactionalId    | The transactional ID to use for transactional delivery. Enables the producer to use transactions. See [Transactions](Transactions.md) | `undefined`          | `String`   | No       |
+| maxInFlightRequests | Max number of requests that may be in progress at any time. If falsey then no limit. When using `idempotent: true`, this must be `<= 5` | `null` _(no limit)_ | `Number`   | No       |
+
+> **New in v3.0.0:** The `transactionalId` option is now documented as a first-class producer option. Previously, it was only mentioned in the Transactions guide.
+>
+> **Deprecated:** The `Partitioners.JavaCompatiblePartitioner` was renamed to `Partitioners.DefaultPartitioner` in v2.0.0. Use `Partitioners.DefaultPartitioner` instead.
+>
+> **Deprecated:** The `Partitioners.LegacyPartitioner` was the default partitioner before v2.0.0. It is still available but no longer the default.
 
 ## Producing messages
 
@@ -75,26 +82,40 @@ await producer.send({
 })
 ```
 
-| property           | description                                                                                                                                                                                                                                                                                                                                | default                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| topic              | topic name                                                                                                                                                                                                                                                                                                                                 |                              |
-| messages           | An array of objects. See [Message structure](#message-structure) for more details. Example: <br> `[{ key: 'my-key', value: 'my-value'}]`                                                                                                                                                                                                                                          |                              |
-| acks               | Control the number of required acks. <br> __-1__ = all insync replicas must acknowledge _(default)_ <br> __0__ = no acknowledgments <br> __1__ = only waits for the leader to acknowledge                                                                                                                                                         | `-1` all insync replicas must acknowledge |
-| timeout            | The time to await a response in ms                                                                                                                                                                                                                                                                                                         | `30000`                            |
-| compression        | Compression codec                                                                                                                                                                                                                                                                                                                          | `CompressionTypes.None`            |
+| property           | description                                                                                                                                                                                                                                                                                                                                | default                            | type     | required |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- | -------- | -------- |
+| topic              | Topic name                                                                                                                                                                                                                                                                                                                                 |                              | `String` | **Yes**  |
+| messages           | An array of objects. See [Message structure](#message-structure) for details. Example: `[{ key: 'my-key', value: 'my-value'}]`                                                                                                                                          |                              | `Message[]` | **Yes**  |
+| acks               | Control the number of required acks. __-1__ = all insync replicas must acknowledge _(default)_ __0__ = no acknowledgments __1__ = only waits for the leader to acknowledge                                                                                                                                                         | `-1` all insync replicas | `Number` | No       |
+| timeout            | The time to await a response in ms                                                                                                                                                                                                                                                                                                         | `30000`                            | `Number` | No       |
+| compression        | Compression codec                                                                                                                                                                                                                                                                                                                          | `CompressionTypes.None`            | `CompressionTypes` | No       |
 
+### Return value
+
+`send` returns a `Promise<RecordMetadata[]>` where each `RecordMetadata` contains:
+
+| property       | description                                                 | type     |
+|----------------|-------------------------------------------------------------|----------|
+| topicName      | The topic name the record was sent to                       | `String` |
+| partition      | The partition the record was sent to                        | `Number` |
+| errorCode      | Error code from broker (0 = success)                        | `Number` |
+| offset         | The offset of the record in the partition                   | `String` |
+| timestamp      | The timestamp of the record                                 | `String` |
+| baseOffset     | The base offset of the record batch                         | `String` |
+| logAppendTime  | The time the broker appended the record to the log          | `String` |
+| logStartOffset | The start offset of the log at the time of this append      | `String` |
 
 ### Message structure
 
 Messages have the following properties:
 
-| Property  | Description                                                                                                                                                                                                             | Default      |
-| ----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
-| key       | Used for partitioning. See [Key](#message-key)                                                                                                                                                                          |              |
-| value     | Your message content. The value can be a Buffer, a string or null. The value will always be encoded as bytes when sent to Kafka. When consumed, the consumer will need to interpret the value according to your schema. |              |
-| partition | Which partition to send the message to. See [Key](#message-key) for details on how the partition is decided if this property is omitted.                                                                                |              |
-| timestamp | The timestamp of when the message was created. See [Timestamp](#message-timestamp) for details.                                                                                                                         | `Date.now()` |
-| headers   | Metadata to associate with your message. See [Headers](#message-headers).                                                                                                                                               |              |
+| Property  | Description                                                                                                                                                                                                             | Default      | Type | Required |
+| ----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|------|----------|
+| key       | Used for partitioning. See [Key](#message-key)                                                                                                                                                                          |              | `Buffer \| String \| null` | No |
+| value     | Your message content. The value can be a `Buffer`, a `string` or `null`. The value will always be encoded as bytes when sent to Kafka. When consumed, the consumer will need to interpret the value according to your schema. |              | `Buffer \| String \| null` | **Yes** |
+| partition | Which partition to send the message to. See [Key](#message-key) for details on how the partition is decided if this property is omitted.                                                                                |              | `Number` | No |
+| timestamp | The timestamp of when the message was created. See [Timestamp](#message-timestamp) for details.                                                                                                                         | `Date.now()` | `String` | No |
+| headers   | Metadata to associate with your message. See [Headers](#message-headers).                                                                                                                                               |              | `Object` | No |
 
 #### <a name="message-key"></a>Key
 
@@ -131,7 +152,7 @@ await producer.send({
 })
 ```
 
-A header value can be either a string or an array of strings.
+A header value can be a `string`, a `Buffer`, or an array of `string | Buffer`.
 
 ## Producing to multiple topics
 
@@ -174,9 +195,12 @@ await producer.sendBatch({
 })
 ```
 
-| property      | description                                                                                                |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| topicMessages | An array of objects with `topic` and `messages`.<br>`messages` is an array of the same type as for `send`. |
+| property      | description                                                                                                | default | type | required |
+| ------------- | ---------------------------------------------------------------------------------------------------------- | ------- | ---- | -------- |
+| topicMessages | An array of objects with `topic` and `messages`. `messages` is an array of the same type as for `send`. |         | `TopicMessages[]` | **Yes** |
+| acks          | Same as `send`                                                                                              | `-1`   | `Number` | No |
+| timeout       | Same as `send`                                                                                              | `30000` | `Number` | No |
+| compression   | Same as `send`                                                                                              | `CompressionTypes.None` | `CompressionTypes` | No |
 
 ## <a name="custom-partitioner"></a> Custom partitioner
 
@@ -218,22 +242,24 @@ KafkaJS ships with 2 partitioners: `DefaultPartitioner` and `LegacyPartitioner`.
 
 The `DefaultPartitioner` should be compatible with the default partitioner that ships with the Java Kafka client. This can be important to meet the [co-partitioning requirement](https://docs.confluent.io/current/ksql/docs/developer-guide/partition-data.html#co-partitioning-requirements) when joining multiple topics.
 
-> 🚨 **Important**  🚨
-> 
+> **Important**
+>
 > **The `LegacyPartitioner` was the default until v2.0.0. If you are upgrading from a version
 older and want to retain the previous partitioning behavior, use the `LegacyPartitioner`
 by importing it and providing it to the Producer constructor:**
-> 
+>
 > ```javascript
 > const { Partitioners } = require('kafkajs')
 > kafka.producer({ createPartitioner: Partitioners.LegacyPartitioner })
 > ```
+>
+> **`Partitioners.JavaCompatiblePartitioner` is deprecated** — it was renamed to `Partitioners.DefaultPartitioner` in v2.0.0. Using `JavaCompatiblePartitioner` still works but will emit a deprecation warning.
 
 ## <a name="retry"></a> Retry
 
 The option `retry` can be used to customize the configuration for the producer.
 
-Take a look at [Retry](Configuration.md#retry) for more information.
+Take a look at [Retry](Configuration.md#default-retry) for more information.
 
 ## <a name="compression"></a> Compression
 
@@ -361,7 +387,37 @@ const producer = kafka.producer({
 })
 ```
 
-When `idempotent` is `true`, acks are automatically set to `-1` (all) and retries default to `MAX_SAFE_INTEGER`.
+When `idempotent` is `true`:
+- `acks` is automatically set to `-1` (all)
+- `retries` defaults to `MAX_SAFE_INTEGER`
+- `maxInFlightRequests` must be `<= 5` (Kafka protocol requirement)
+
+You can check if a producer instance is idempotent:
+
+```javascript
+producer.isIdempotent() // true or false
+```
+
+## <a name="instrumentation-events"></a> Instrumentation Events
+
+The producer emits instrumentation events that can be used for monitoring:
+
+```javascript
+const { CONNECT, DISCONNECT, REQUEST, REQUEST_TIMEOUT, REQUEST_QUEUE_SIZE } = producer.events
+
+producer.on(CONNECT, e => console.log(`Producer connected at ${e.timestamp}`))
+producer.on(DISCONNECT, e => console.log(`Producer disconnected at ${e.timestamp}`))
+producer.on(REQUEST, e => console.log(`Request to ${e.payload.broker}`, e.payload))
+producer.on(REQUEST_TIMEOUT, e => console.log(`Request timeout`, e.payload))
+producer.on(REQUEST_QUEUE_SIZE, e => console.log(`Queue size: ${e.payload.queueSize}`))
+```
+
+The `on` method returns a function to remove the listener:
+
+```javascript
+const removeListener = producer.on(producer.events.REQUEST, e => {})
+removeListener() // stop listening
+```
 
 ## <a name="kraft-mode"></a> KRaft Mode (Kafka 4.0+)
 

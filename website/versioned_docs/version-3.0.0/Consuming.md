@@ -12,6 +12,48 @@ Creating the consumer:
 const consumer = kafka.consumer({ groupId: 'my-group' })
 ```
 
+## <a name="options"></a> Options
+
+```javascript
+kafka.consumer({
+  groupId: <String>,
+  groupInstanceId: <String>,
+  partitionAssigners: <Array>,
+  sessionTimeout: <Number>,
+  rebalanceTimeout: <Number>,
+  heartbeatInterval: <Number>,
+  metadataMaxAge: <Number>,
+  allowAutoTopicCreation: <Boolean>,
+  maxBytesPerPartition: <Number>,
+  minBytes: <Number>,
+  maxBytes: <Number>,
+  maxWaitTimeInMs: <Number>,
+  retry: <Object>,
+  readUncommitted: <Boolean>,
+  maxInFlightRequests: <Number>,
+  rackId: <String>
+})
+```
+
+| option                 | description                                                                                                                                                                                                                                                                                                                                        | default                           | type       | required |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------- | -------- |
+| groupId                | Consumer group ID. Must be unique within the cluster                                                                                                                                                                                                                                                                                               |                                   | `String`   | **Yes** |
+| groupInstanceId        | Static group instance ID for static membership (KIP-345). See [Static Membership](#static-membership)                                                                                                                                                                                                                                             | `undefined`                       | `String`   | No |
+| partitionAssigners     | List of partition assigners                                                                                                                                                                                                                                                                                                                        | `[PartitionAssigners.roundRobin]` | `Array`    | No |
+| sessionTimeout         | Timeout in milliseconds used to detect failures. The consumer sends periodic heartbeats to indicate its liveness to the broker. If no heartbeats are received by the broker before the expiration of this session timeout, then the broker will remove this consumer from the group and initiate a rebalance                                       | `30000`                           | `Number`   | No |
+| rebalanceTimeout       | The maximum time that the coordinator will wait for each member to rejoin when rebalancing the group                                                                                                                                                                                                                                               | `60000`                           | `Number`   | No |
+| heartbeatInterval      | The expected time in milliseconds between heartbeats to the consumer coordinator. Heartbeats are used to ensure that the consumer's session stays active. The value must be set lower than session timeout                                                                                                                                         | `3000`                            | `Number`   | No |
+| metadataMaxAge         | The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions                                                                                                                                                       | `300000` (5 min)                  | `Number`   | No |
+| allowAutoTopicCreation | Allow topic creation when querying metadata for non-existent topics                                                                                                                                                                                                                                                                                | `true`                            | `Boolean`  | No |
+| maxBytesPerPartition   | The maximum amount of data per-partition the server will return. This size must be at least as large as the maximum message size the server allows or else it is possible for the producer to send messages larger than the consumer can fetch. If that happens, the consumer can get stuck trying to fetch a large message on a certain partition | `1048576` (1MB)                   | `Number`   | No |
+| minBytes               | Minimum amount of data the server should return for a fetch request, otherwise wait up to `maxWaitTimeInMs` for more data to accumulate                                                                                                                                                                                                           | `1`                               | `Number`   | No |
+| maxBytes               | Maximum amount of bytes to accumulate in the response. Supported by Kafka >= `0.10.1.0`                                                                                                                                                                                                                                                            | `10485760` (10MB)                 | `Number`   | No |
+| maxWaitTimeInMs        | The maximum amount of time in milliseconds the server will block before answering the fetch request if there isn't sufficient data to immediately satisfy the requirement given by `minBytes`                                                                                                                                                      | `5000`                            | `Number`   | No |
+| retry                  | Retry configuration. Also supports consumer-specific `restartOnFailure`. See [retry](Configuration.md#default-retry)                                                                                                                                                                                                                              | `{ retries: 5 }`                 | `Object`   | No |
+| readUncommitted        | Configures the consumer isolation level. If `false` (default), the consumer will not return any transactional messages which were not committed                                                                                                                                                                                                   | `false`                           | `Boolean`  | No |
+| maxInFlightRequests    | Max number of requests that may be in progress at any time. If falsey then no limit                                                                                                                                                                                                                                                                | `null` _(no limit)_              | `Number`   | No |
+| rackId                 | Configure the "rack" in which the consumer resides to enable [follower fetching](#follower-fetching)                                                                                                                                                                                                                                               | `null` _(fetch from leader)_     | `String`   | No |
+
 ### Static Membership
 
 Static membership (KIP-345) allows consumers to maintain their group assignment across restarts by providing a `groupInstanceId`. This reduces unnecessary rebalances when consumers restart:
@@ -25,7 +67,11 @@ const consumer = kafka.consumer({
 
 When a consumer with a `groupInstanceId` disconnects, the broker waits for `session.timeout.ms` before triggering a rebalance. If the consumer reconnects with the same `groupInstanceId` within that window, it resumes its previous assignment without rebalancing.
 
-Subscribing to some topics:
+| option          | description                                                                 | type     | required |
+|-----------------|-----------------------------------------------------------------------------|----------|----------|
+| groupInstanceId | Unique identifier for static group membership. Must be unique per instance  | `String` | No |
+
+## Subscribing to topics
 
 ```javascript
 await consumer.connect()
@@ -48,6 +94,13 @@ await consumer.subscribe({ topics: [/topic-(eu|us)-.*/i] })
 
 When suppling a regular expression, the consumer will not match topics created after the subscription. If your broker has `topic-A` and `topic-B`, you subscribe to `/topic-.*/`, then `topic-C` is created, your consumer would not be automatically subscribed to `topic-C`.
 
+| property      | description                                                                                     | default | type       | required |
+|---------------|-------------------------------------------------------------------------------------------------|---------|------------|----------|
+| topics        | Array of topic names or RegExp patterns to subscribe to                                          |         | `(String \| RegExp)[]` | **Yes** |
+| fromBeginning | When `true`, start from earliest offset. When `false`, start from latest                        | `false` | `Boolean`  | No |
+
+> **Deprecated:** `consumer.subscribe({ topic: 'topic-A' })` (single `topic` string) is deprecated. Use `topics` array instead: `consumer.subscribe({ topics: ['topic-A'] })`.
+
 KafkaJS offers you two ways to process your data: `eachMessage` and `eachBatch`
 
 ## <a name="each-message"></a> eachMessage
@@ -66,8 +119,31 @@ await consumer.run({
 })
 ```
 
+### `eachMessage` payload
+
+| property  | description                                                                         | type       |
+|-----------|-------------------------------------------------------------------------------------|------------|
+| topic     | The topic name                                                                       | `String`   |
+| partition | The partition number                                                                 | `Number`   |
+| message   | The Kafka message. See [KafkaMessage](#kafka-message-type) below                     | `KafkaMessage` |
+| heartbeat | Async function to send heartbeat to broker                                           | `() => Promise<void>` |
+| pause     | Convenience function to pause the current topic-partition. Returns a resume function | `() => () => void` |
+
 Be aware that the `eachMessage` handler should not block for longer than the configured [session timeout](#options) or else the consumer will be removed from the group. If your workload involves very slow processing times for individual messages then you should either increase the session timeout or make periodic use of the `heartbeat` function exposed in the handler payload.
 The `pause` function is a convenience for `consumer.pause({ topic, partitions: [partition] })`. It will pause the current topic-partition and returns a function that allows you to resume consuming later.
+
+### <a name="kafka-message-type"></a> KafkaMessage type
+
+Messages received by the consumer have the following properties:
+
+| property   | description                                                | type |
+|------------|------------------------------------------------------------|------|
+| key        | Message key (may be `null`)                                | `Buffer \| null` |
+| value      | Message value (may be `null` for tombstones)               | `Buffer \| null` |
+| timestamp  | Message timestamp as string                                | `String` |
+| offset     | Message offset as string                                   | `String` |
+| headers    | Message headers (only present in RecordBatch format)       | `Object` |
+| attributes | Message attributes bitmask                                 | `Number` |
 
 ## <a name="each-batch"></a> eachBatch
 
@@ -108,15 +184,32 @@ await consumer.run({
 })
 ```
 
-* `eachBatchAutoResolve` configures auto-resolve of batch processing. If set to true, KafkaJS will automatically commit the last offset of the batch if `eachBatch` doesn't throw an error. Default: true.
-* `batch.highWatermark` is the last committed offset within the topic partition. It can be useful for calculating lag.
-* `resolveOffset()` is used to mark a message in the batch as processed. In case of errors, the consumer will automatically commit the resolved offsets.
-* `heartbeat(): Promise<void>` can be used to send heartbeat to the broker according to the set `heartbeatInterval` value in consumer [configuration](#options), which means if you invoke `heartbeat()` sooner than `heartbeatInterval` it will be ignored.
-* `commitOffsetsIfNecessary(offsets?): Promise<void>` is used to commit offsets based on the autoCommit configurations (`autoCommitInterval` and `autoCommitThreshold`). Note that auto commit won't happen in `eachBatch` if `commitOffsetsIfNecessary` is not invoked. Take a look at [autoCommit](#auto-commit) for more information.
-* `uncommittedOffsets()` returns all offsets by topic-partition which have not yet been committed.
-* `isRunning()` returns true if consumer is in running state, else it returns false.
-* `isStale()` returns whether the messages in the batch have been rendered stale through some other operation and should be discarded. For example, when calling [`consumer.seek`](#seek) the messages in the batch should be discarded, as they are not at the offset we seeked to.
-* `pause()` can be used to pause the consumer for the current topic-partition. All offsets resolved up to that point will be committed (subject to `eachBatchAutoResolve` and [autoCommit](#auto-commit)). Throw an error to pause in the middle of the batch without resolving the current offset. Alternatively, disable `eachBatchAutoResolve`. The returned function can be used to resume processing of the topic-partition. See [Pause & Resume](#pause-resume) for more information about this feature.
+### `eachBatch` payload
+
+| property                    | description                                                                                                                     | type       |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------|------------|
+| batch                       | The batch object containing `topic`, `partition`, `highWatermark`, and `messages`                                                | `Batch`    |
+| resolveOffset(offset)       | Mark a message offset as processed. On errors, the consumer will commit resolved offsets                                         | `Function` |
+| heartbeat()                 | Send heartbeat to broker. Respects `heartbeatInterval` — calls sooner than the interval are ignored                              | `() => Promise<void>` |
+| commitOffsetsIfNecessary(offsets?) | Commit offsets based on `autoCommitInterval` and `autoCommitThreshold`. **Required** for auto-commit in `eachBatch`        | `(offsets?) => Promise<void>` |
+| uncommittedOffsets()        | Returns all offsets by topic-partition which have not yet been committed                                                          | `() => OffsetsByTopicPartition` |
+| isRunning()                 | Returns `true` if consumer is in running state                                                                                   | `() => Boolean` |
+| isStale()                   | Returns whether messages have been rendered stale (e.g., after `consumer.seek`)                                                  | `() => Boolean` |
+| pause()                     | Pause the current topic-partition. Returns a resume function                                                                      | `() => () => void` |
+
+### Batch Object
+
+| property      | description                                                    | type |
+|---------------|----------------------------------------------------------------|------|
+| topic         | Topic name                                                      | `String` |
+| partition     | Partition number                                                | `Number` |
+| highWatermark | The last committed offset within the topic partition (for lag calculation) | `String` |
+| messages      | Array of `KafkaMessage`                                         | `KafkaMessage[]` |
+| isEmpty()     | Returns whether the batch has no messages                       | `Boolean` |
+| firstOffset() | Returns the first offset or `null`                              | `String \| null` |
+| lastOffset()  | Returns the last offset                                         | `String` |
+| offsetLag()   | Returns the offset lag (distance from high watermark)           | `String` |
+| offsetLagLow()| Returns the low offset lag                                      | `String` |
 
 ### Example
 
@@ -135,6 +228,18 @@ consumer.run({
 ```
 
 In the example above, if the consumer is shutting down in the middle of the batch, the remaining messages won't be resolved and therefore not committed. This way, you can quickly shut down the consumer without losing/skipping any messages. If the batch goes stale for some other reason (like calling `consumer.seek`) none of the remaining messages are processed either.
+
+## <a name="run-config"></a> consumer.run() Configuration
+
+| option                        | description                                                                                     | default | type       | required |
+|-------------------------------|-------------------------------------------------------------------------------------------------|---------|------------|----------|
+| autoCommit                    | Enable/disable automatic offset committing. See [autoCommit](#auto-commit)                      | `true`  | `Boolean`  | No |
+| autoCommitInterval            | Commit offsets after this interval in ms. See [autoCommit](#auto-commit)                        | `null`  | `Number`   | No |
+| autoCommitThreshold           | Commit offsets after resolving this many messages. See [autoCommit](#auto-commit)                | `null`  | `Number`   | No |
+| eachBatchAutoResolve          | Auto-resolve batch offsets on success                                                            | `true`  | `Boolean`  | No |
+| partitionsConsumedConcurrently| Number of partitions processed concurrently. See [Concurrency](#concurrent-processing)           | `1`     | `Number`   | No |
+| eachBatch                     | Batch handler function                                                                           |         | `Function` | One of eachBatch/eachMessage |
+| eachMessage                   | Message handler function                                                                         |         | `Function` | One of eachBatch/eachMessage |
 
 ## <a name="concurrent-processing"></a> Partition-aware concurrency
 
@@ -208,6 +313,15 @@ consumer.commitOffsets([
 ])
 ```
 
+The `commitOffsets` method accepts an array of `TopicPartitionOffsetAndMetadata`:
+
+| property  | description                          | type     | required |
+|-----------|--------------------------------------|----------|----------|
+| topic     | Topic name                           | `String` | **Yes** |
+| partition | Partition number                     | `Number` | **Yes** |
+| offset    | Offset to commit                     | `String` | **Yes** |
+| metadata  | Optional metadata string              | `String \| null` | No |
+
 Note that you don't *have* to store consumed offsets in Kafka, but instead store it in a storage mechanism of your own choosing. That's an especially useful approach when the results of consuming a message are written to a datastore that allows atomically writing the consumed offset with it, like for example a SQL database. When possible it can make the consumption fully atomic and give "exactly once" semantics that are stronger than the default "at-least once" semantics you get with Kafka's offset commit functionality.
 
 The usual usage pattern for offsets stored outside of Kafka is as follows:
@@ -226,44 +340,6 @@ await consumer.subscribe({ topics: ['other-topic'], fromBeginning: false })
 ```
 
 When `fromBeginning` is `true`, the group will use the earliest offset. If set to `false`, it will use the latest offset. The default is `false`.
-
-## <a name="options"></a> Options
-
-```javascript
-kafka.consumer({
-  groupId: <String>,
-  partitionAssigners: <Array>,
-  sessionTimeout: <Number>,
-  rebalanceTimeout: <Number>,
-  heartbeatInterval: <Number>,
-  metadataMaxAge: <Number>,
-  allowAutoTopicCreation: <Boolean>,
-  maxBytesPerPartition: <Number>,
-  minBytes: <Number>,
-  maxBytes: <Number>,
-  maxWaitTimeInMs: <Number>,
-  retry: <Object>,
-  maxInFlightRequests: <Number>,
-  rackId: <String>
-})
-```
-
-| option                 | description                                                                                                                                                                                                                                                                                                                                        | default                           |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| partitionAssigners     | List of partition assigners                                                                                                                                                                                                                                                                                                                        | `[PartitionAssigners.roundRobin]` |
-| sessionTimeout         | Timeout in milliseconds used to detect failures. The consumer sends periodic heartbeats to indicate its liveness to the broker. If no heartbeats are received by the broker before the expiration of this session timeout, then the broker will remove this consumer from the group and initiate a rebalance                                       | `30000`                           |
-| rebalanceTimeout       | The maximum time that the coordinator will wait for each member to rejoin when rebalancing the group                                                                                                                                                                                                                                               | `60000`                           |
-| heartbeatInterval      | The expected time in milliseconds between heartbeats to the consumer coordinator. Heartbeats are used to ensure that the consumer's session stays active. The value must be set lower than session timeout                                                                                                                                         | `3000`                            |
-| metadataMaxAge         | The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions                                                                                                                                                       | `300000` (5 minutes)              |
-| allowAutoTopicCreation | Allow topic creation when querying metadata for non-existent topics                                                                                                                                                                                                                                                                                | `true`                            |
-| maxBytesPerPartition   | The maximum amount of data per-partition the server will return. This size must be at least as large as the maximum message size the server allows or else it is possible for the producer to send messages larger than the consumer can fetch. If that happens, the consumer can get stuck trying to fetch a large message on a certain partition | `1048576` (1MB)                   |
-| minBytes               | Minimum amount of data the server should return for a fetch request, otherwise wait up to `maxWaitTimeInMs` for more data to accumulate.                                                                                                                                                                                                           | `1`                               |
-| maxBytes               | Maximum amount of bytes to accumulate in the response. Supported by Kafka >= `0.10.1.0`                                                                                                                                                                                                                                                            | `10485760` (10MB)                 |
-| maxWaitTimeInMs        | The maximum amount of time in milliseconds the server will block before answering the fetch request if there isn’t sufficient data to immediately satisfy the requirement given by `minBytes`                                                                                                                                                      | `5000`                            |
-| retry                  | See [retry](Configuration.md#retry) for more information                                                                                                                                                                                                                                                                                           | `{ retries: 5 }`                 |
-| readUncommitted        | Configures the consumer isolation level. If `false` (default), the consumer will not return any transactional messages which were not committed.                                                                                                                                                                                                   | `false`                           |
-| maxInFlightRequests | Max number of requests that may be in progress at any time. If falsey then no limit.                                    | `null` _(no limit)_ |
-| rackId                 | Configure the "rack" in which the consumer resides to enable [follower fetching](#follower-fetching)                 | `null` _(fetch from the leader always)_ |
 
 ## <a name="pause-resume"></a> Pause & Resume
 
@@ -353,6 +429,14 @@ for (const topicPartitions of pausedTopicPartitions) {
 }
 ```
 
+### Pause/Resume API
+
+| method   | description                                                          | signature |
+|----------|----------------------------------------------------------------------|-----------|
+| pause    | Pause consuming from topics/partitions                                | `pause(topics: Array<{ topic: string; partitions?: number[] }>): void` |
+| resume   | Resume consuming from paused topics/partitions                        | `resume(topics: Array<{ topic: string; partitions?: number[] }>): void` |
+| paused   | Get list of all paused topic partitions                               | `paused(): Array<{ topic: string; partitions: number[] }>` |
+
 ## <a name="seek"></a> Seek
 
 To move the offset position in a topic/partition the `Consumer` provides the method `seek`. This method has to be called after the consumer is initialized and is running (after consumer#run).
@@ -379,6 +463,12 @@ consumer.run({
 consumer.seek({ topic: 'example', partition: 0, offset: "12384" })
 ```
 
+| property  | description                          | type     | required |
+|-----------|--------------------------------------|----------|----------|
+| topic     | Topic name                           | `String` | **Yes** |
+| partition | Partition number                     | `Number` | **Yes** |
+| offset    | Offset to seek to                    | `String \| Number` | **Yes** |
+
 ## <a name="custom-partition-assigner"></a> Custom partition assigner
 
 It's possible to configure the strategy the consumer will use to distribute partitions amongst the consumer group. KafkaJS has a round robin assigner configured by default.
@@ -393,6 +483,14 @@ const MyPartitionAssigner = ({ cluster }) => ({
     protocol({ topics }) {}
 })
 ```
+
+The assigner factory function receives:
+
+| argument | description                 | type     |
+|----------|-----------------------------|----------|
+| cluster  | The cluster instance         | `Cluster` |
+| groupId  | The consumer group ID        | `String` |
+| logger   | The logger instance          | `Logger` |
 
 The method `assign` has to return an assignment plan with partitions per topic. A partition plan consists of a list of `memberId` and `memberAssignment`. The member assignment has to be encoded, use the `MemberAssignment` utility for that. Example:
 
@@ -468,6 +566,7 @@ const data = await consumer.describeGroup()
 //      memberAssignment: Buffer,
 //      memberId: 'test-3e93246fe1f4efa7380a-ff87d06d-5c87-49b8-a1f1-c4f8e3ffe7eb',
 //      memberMetadata: Buffer,
+//      groupInstanceId: 'instance-1', // present with static membership
 //    },
 //  ],
 //  protocol: 'RoundRobinAssigner',
@@ -529,12 +628,33 @@ run().catch(e => console.error(e.message, e))
 
 The `deadLetterQueue` function accepts the following options:
 
-| option                   | description                                                      | default |
-| -------------------------| ---------------------------------------------------------------- | ------- |
-| producer                 | A connected KafkaJS producer instance to send failed messages    |         |
-| topic                    | The dead letter topic name                                       |         |
-| maxRetries               | Number of retries before sending to the DLQ                      | `3`     |
-| onOriginalMessageFailed  | Async callback invoked when a message is sent to the DLQ         |         |
+| option                   | description                                                                          | default | type       | required |
+| -------------------------| ------------------------------------------------------------------------------------ | ------- | ---------- | -------- |
+| producer                 | A connected KafkaJS producer instance to send failed messages                        |         | `Producer` | **Yes** |
+| topic                    | The dead letter topic name                                                           |         | `String`   | **Yes** |
+| maxRetries               | Number of retries before sending to the DLQ                                          | `3`     | `Number`   | No |
+| onOriginalMessageFailed  | Async callback invoked when a message is sent to the DLQ                             |         | `Function` | No |
+| createDLQMessage         | Custom function to create the DLQ message. Receives `(error, eachMessagePayload)` and returns a `Message` object | automatic | `Function` | No |
+
+> **New in v3.0.0:** The `createDLQMessage` option allows you to customize the message that gets sent to the DLQ topic. By default, the original message is forwarded as-is. Use this to add error details as headers, modify the value, etc.
+
+```javascript
+const withDLQ = deadLetterQueue({
+  producer,
+  topic: 'orders.dlq',
+  maxRetries: 3,
+  createDLQMessage: (error, { topic, partition, message }) => ({
+    key: message.key,
+    value: message.value,
+    headers: {
+      ...message.headers,
+      'dlq-original-topic': topic,
+      'dlq-original-partition': String(partition),
+      'dlq-error-message': error.message,
+    },
+  }),
+})
+```
 
 ## <a name="cdc"></a> Change Data Capture (CDC)
 
@@ -604,10 +724,70 @@ run().catch(e => console.error(e.message, e))
 
 Debezium supports PostgreSQL, MySQL, MongoDB, and other databases. See the [Debezium documentation](https://debezium.io/documentation/) for connector setup.
 
+## <a name="instrumentation-events"></a> Instrumentation Events
+
+The consumer emits instrumentation events for monitoring and debugging:
+
+```javascript
+const {
+  HEARTBEAT,
+  COMMIT_OFFSETS,
+  GROUP_JOIN,
+  FETCH_START,
+  FETCH,
+  START_BATCH_PROCESS,
+  END_BATCH_PROCESS,
+  CONNECT,
+  DISCONNECT,
+  STOP,
+  CRASH,
+  REBALANCING,
+  RECEIVED_UNSUBSCRIBED_TOPICS,
+  REQUEST,
+  REQUEST_TIMEOUT,
+  REQUEST_QUEUE_SIZE,
+} = consumer.events
+
+consumer.on(CRASH, e => console.error('Consumer crash', e.payload))
+consumer.on(GROUP_JOIN, e => console.log('Joined group', e.payload))
+```
+
+The `on` method returns a function to remove the listener:
+
+```javascript
+const removeListener = consumer.on(consumer.events.CRASH, e => {})
+removeListener() // stop listening
+```
+
 ## <a name="follower-fetching"></a> Follower Fetching
 
 KafkaJS supports "follower fetching", where the consumer tries to fetch data preferentially from a broker in the same "rack", rather than always going to the leader. This can considerably reduce operational costs if data transfer across "racks" is metered. There may also be performance benefits if the network speed between these "racks" is limited.
 
 The meaning of "rack" is very flexible, and can be used to model setups such as data centers, regions/availability zones, or other topologies.
 
+```javascript
+const consumer = kafka.consumer({
+  groupId: 'my-group',
+  rackId: 'us-east-1a', // matches broker's broker.rack setting
+})
+```
+
 See also [this blog post](https://www.confluent.io/blog/multi-region-data-replication/) for the bigger context.
+
+## Consumer Methods Summary
+
+| method           | description                                              | signature |
+|------------------|----------------------------------------------------------|-----------|
+| connect()        | Connect the consumer to the cluster                       | `() => Promise<void>` |
+| disconnect()     | Disconnect the consumer                                   | `() => Promise<void>` |
+| subscribe()      | Subscribe to topics                                       | `(subscription) => Promise<void>` |
+| run()            | Start consuming messages                                  | `(config?) => Promise<void>` |
+| stop()           | Stop consuming messages                                   | `() => Promise<void>` |
+| seek()           | Seek to a specific offset                                 | `(topicPartitionOffset) => void` |
+| pause()          | Pause topic-partitions                                    | `(topics) => void` |
+| resume()         | Resume paused topic-partitions                            | `(topics) => void` |
+| paused()         | Get paused topic-partitions                               | `() => TopicPartitions[]` |
+| commitOffsets()  | Manually commit offsets                                   | `(offsets) => Promise<void>` |
+| describeGroup()  | Get consumer group metadata                               | `() => Promise<GroupDescription>` |
+| on()             | Listen to instrumentation events                          | `(event, listener) => RemoveListener` |
+| logger()         | Get the consumer's logger                                 | `() => Logger` |

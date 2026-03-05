@@ -19,6 +19,47 @@ The option `retry` can be used to customize the configuration for the admin.
 
 Take a look at [Retry](Configuration.md#default-retry) for more information.
 
+## Admin Configuration
+
+| option | description                            | default         | type     | required |
+|--------|----------------------------------------|-----------------|----------|----------|
+| retry  | Retry mechanism configuration          | `{ retries: 5 }` | `Object` | No |
+
+## Admin Methods Summary
+
+| method                          | description                                            | Kafka Version |
+|---------------------------------|--------------------------------------------------------|---------------|
+| listTopics                      | List all topic names                                    | All |
+| createTopics                    | Create new topics                                       | All |
+| deleteTopics                    | Delete topics                                           | All |
+| createPartitions                | Add partitions to existing topics                       | All |
+| fetchTopicMetadata              | Get topic metadata                                      | All |
+| fetchTopicOffsets               | Get latest offsets for a topic                          | All |
+| fetchTopicOffsetsByTimestamp    | Get offsets by timestamp                                | All |
+| fetchOffsets                    | Get consumer group offsets                              | All |
+| resetOffsets                    | Reset consumer group offsets                            | All |
+| setOffsets                      | Set consumer group offsets                              | All |
+| describeCluster                 | Get cluster information                                 | All |
+| describeConfigs                 | Get resource configurations                             | All |
+| alterConfigs                    | Replace resource configurations                         | All |
+| incrementalAlterConfigs         | Incrementally update resource configurations            | 2.3+ |
+| listGroups                      | List consumer groups                                    | All |
+| describeGroups                  | Describe consumer groups                                | All |
+| deleteGroups                    | Delete consumer groups                                  | All |
+| deleteTopicRecords              | Delete records from topic partitions                    | All |
+| createAcls                      | Create ACL entries                                      | All |
+| deleteAcls                      | Delete ACL entries                                      | All |
+| describeAcls                    | Describe ACL entries                                    | All |
+| alterPartitionReassignments     | Reassign partition replicas                             | All |
+| listPartitionReassignments      | List ongoing partition reassignments                    | All |
+| electLeaders                    | Trigger leader election                                 | 2.4+ |
+| deleteOffsets                   | Delete consumer group offsets                           | All |
+| describeLogDirs                 | Get log directory information                           | All |
+| describeProducers               | Describe active producers                               | All |
+| describeTransactions            | Describe active transactions                            | All |
+| listTransactions                | List active transactions                                | All |
+| shareGroupDescribe              | Describe Share Groups (KIP-932)                         | **4.0+** |
+
 ## <a name="list-topics"></a> List topics
 
 `listTopics` lists the names of all existing topics, and returns an array of strings.
@@ -54,12 +95,12 @@ await admin.createTopics({
 }
 ```
 
-| property       | description                                                                                           | default |
-| -------------- | ----------------------------------------------------------------------------------------------------- | ------- |
-| topics         | Topic definition                                                                                      |         |
-| validateOnly   | If this is `true`, the request will be validated, but the topic won't be created.                     | false   |
-| timeout        | The time in ms to wait for a topic to be completely created on the controller node                    | 5000    |
-| waitForLeaders | If this is `true` it will wait until metadata for the new topics doesn't throw `LEADER_NOT_AVAILABLE` | true    |
+| property       | description                                                                                           | default | type | required |
+| -------------- | ----------------------------------------------------------------------------------------------------- | ------- | ---- | -------- |
+| topics         | Topic definitions array                                                                               |         | `ITopicConfig[]` | **Yes** |
+| validateOnly   | If `true`, the request will be validated, but the topic won't be created                              | `false` | `Boolean` | No |
+| timeout        | The time in ms to wait for a topic to be completely created on the controller node                    | `5000`  | `Number` | No |
+| waitForLeaders | If `true` it will wait until metadata for the new topics doesn't throw `LEADER_NOT_AVAILABLE`         | `true`  | `Boolean` | No |
 
 ## <a name="delete-topics"></a> Delete topics
 
@@ -69,6 +110,11 @@ await admin.deleteTopics({
     timeout: <Number>, // default: 5000
 })
 ```
+
+| property | description                        | default | type       | required |
+|----------|------------------------------------|---------|------------|----------|
+| topics   | Array of topic names to delete     |         | `String[]` | **Yes** |
+| timeout  | Timeout in ms                      | `5000`  | `Number`   | No |
 
 Topic deletion is disabled by default in Apache Kafka versions prior to `1.0.0`. To enable it set the server config.
 
@@ -98,13 +144,11 @@ await admin.createPartitions({
 }
 ```
 
-| property       | description                                                                                           | default |
-| -------------- | ----------------------------------------------------------------------------------------------------- | ------- |
-| topicPartitions| Topic partition definition                                                                                      |         |
-| validateOnly   | If this is `true`, the request will be validated, but the topic won't be created.                     | false   |
-| timeout        | The time in ms to wait for a topic to be completely created on the controller node                    | 5000    |
-| count          | New partition count, mandatory                                                                                   |         |
-| assignments    | Assigned brokers for each new partition                                                               | null    |
+| property       | description                                                                           | default | type | required |
+| -------------- | ------------------------------------------------------------------------------------- | ------- | ---- | -------- |
+| topicPartitions| Topic partition definitions                                                           |         | `ITopicPartitionConfig[]` | **Yes** |
+| validateOnly   | If `true`, the request will be validated, but the partitions won't be created         | `false` | `Boolean` | No |
+| timeout        | The time in ms to wait for completion                                                 | `5000`  | `Number` | No |
 
 ## <a name="fetch-topic-metadata"></a> Fetch topic metadata
 
@@ -112,20 +156,16 @@ await admin.createPartitions({
 await admin.fetchTopicMetadata({ topics: <Array<String>> })
 ```
 
-`TopicsMetadata` structure:
-
-```javascript
-{
-    topics: <Array<TopicMetadata>>,
-}
-```
+| property | description                                           | default | type       | required |
+|----------|-------------------------------------------------------|---------|------------|----------|
+| topics   | Array of topic names. Omit to fetch all topics        |         | `String[]` | No |
 
 `TopicMetadata` structure:
 
 ```javascript
 {
     name: <String>,
-    partitions: <Array<PartitionMetadata>> // default: 1
+    partitions: <Array<PartitionMetadata>>
 }
 ```
 
@@ -139,6 +179,7 @@ await admin.fetchTopicMetadata({ topics: <Array<String>> })
     leaderEpoch: <Number>,        // Available with Kafka 2.4+ (Metadata v7+)
     replicas: <Array<Number>>,
     isr: <Array<Number>>,
+    offlineReplicas: <Array<Number>>, // Available when broker reports it
 }
 ```
 
@@ -176,6 +217,11 @@ await admin.fetchTopicOffsetsByTimestamp(topic, timestamp)
 // ]
 ```
 
+| parameter | description                              | type     | required |
+|-----------|------------------------------------------|----------|----------|
+| topic     | Topic name                               | `String` | **Yes** |
+| timestamp | Timestamp in ms (epoch). Omit for latest | `Number` | No |
+
 ## <a name="fetch-offsets"></a> Fetch consumer group offsets
 
 `fetchOffsets` returns the consumer group offset for a list of topics.
@@ -186,23 +232,18 @@ await admin.fetchOffsets({ groupId, topics: ['topic1', 'topic2'] })
 //   {
 //     topic: 'topic1',
 //     partitions: [
-//       { partition: 0, offset: '31004' },
-//       { partition: 1, offset: '54312' },
-//       { partition: 2, offset: '32103' },
-//       { partition: 3, offset: '28' },
-//     ],
-//   },
-//   {
-//     topic: 'topic2',
-//     partitions: [
-//       { partition: 0, offset: '1234' },
-//       { partition: 1, offset: '4567' },
+//       { partition: 0, offset: '31004', metadata: null },
+//       { partition: 1, offset: '54312', metadata: null },
 //     ],
 //   },
 // ]
 ```
 
-Omit `topics` altogether if you want to get the consumer group offsets for all topics with committed offsets.
+| property       | description                                                              | default | type       | required |
+|----------------|--------------------------------------------------------------------------|---------|------------|----------|
+| groupId        | Consumer group ID                                                         |         | `String`   | **Yes** |
+| topics         | Array of topic names. Omit to get offsets for all committed topics        |         | `String[]` | No |
+| resolveOffsets | Resolve offsets to real values (useful after reset)                        | `false` | `Boolean`  | No |
 
 Include the optional `resolveOffsets` flag to resolve the offsets without having to start a consumer, useful when fetching directly after calling [resetOffsets](#a-name-reset-offsets-a-reset-consumer-group-offsets):
 
@@ -212,8 +253,6 @@ await admin.fetchOffsets({ groupId, topics: [topic], resolveOffsets: false })
 // [
 //   { partition: 0, offset: '-1' },
 //   { partition: 1, offset: '-1' },
-//   { partition: 2, offset: '-1' },
-//   { partition: 3, offset: '-1' },
 // ]
 
 await admin.resetOffsets({ groupId, topic })
@@ -221,8 +260,6 @@ await admin.fetchOffsets({ groupId, topics: [topic], resolveOffsets: true })
 // [
 //   { partition: 0, offset: '31004' },
 //   { partition: 1, offset: '54312' },
-//   { partition: 2, offset: '32103' },
-//   { partition: 3, offset: '28' },
 // ]
 ```
 
@@ -236,6 +273,12 @@ await admin.resetOffsets({ groupId, topic }) // latest by default
 // await admin.resetOffsets({ groupId, topic, earliest: true })
 ```
 
+| property | description                                     | default | type      | required |
+|----------|-------------------------------------------------|---------|-----------|----------|
+| groupId  | Consumer group ID                                |         | `String`  | **Yes** |
+| topic    | Topic name                                       |         | `String`  | **Yes** |
+| earliest | If `true`, reset to earliest offset              | `false` | `Boolean` | No |
+
 ## <a name="set-offsets"></a> Set consumer group offsets
 
 `setOffsets` allows you to set the consumer group offset to any value.
@@ -247,6 +290,12 @@ await admin.setOffsets({
     partitions: <SeekEntry[]>,
 })
 ```
+
+| property   | description                        | type     | required |
+|------------|------------------------------------|----------|----------|
+| groupId    | Consumer group ID                  | `String` | **Yes** |
+| topic      | Topic name                         | `String` | **Yes** |
+| partitions | Array of partition-offset entries   | `SeekEntry[]` | **Yes** |
 
 `SeekEntry` structure:
 
@@ -288,12 +337,22 @@ for monitoring or operations, and is usually not relevant for typical event proc
 await admin.describeCluster()
 // {
 //   brokers: [
-//     { nodeId: 0, host: 'localhost', port: 9092 }
+//     { nodeId: 0, host: 'localhost', port: 9092, rack: 'us-east-1a' }
 //   ],
 //   controller: 0,
-//   clusterId: 'f8QmWTB8SQSLE6C99G4qzA'
+//   clusterId: 'f8QmWTB8SQSLE6C99G4qzA',
+//   clusterAuthorizedOperations: 0
 // }
 ```
+
+Response fields:
+
+| field                        | description                                            | type |
+|------------------------------|--------------------------------------------------------|------|
+| brokers                      | Array of broker info with `nodeId`, `host`, `port`, `rack` | `ClusterBroker[]` |
+| controller                   | Node ID of the controller broker (or `null`)           | `Number \| null` |
+| clusterId                    | Cluster identifier string                               | `String` |
+| clusterAuthorizedOperations  | Bitmask of authorized operations                        | `Number` |
 
 ## <a name="describe-configs"></a> Describe configs
 
@@ -310,11 +369,25 @@ await admin.describeConfigs({
 
 ```javascript
 {
-    type: <ConfigResourceType>,
+    type: <ConfigResourceTypes>,
     name: <String>,
-    configNames: <String[]>
+    configNames: <String[]>  // optional - omit to get all configs
 }
 ```
+
+| property        | description                              | default | type | required |
+|-----------------|------------------------------------------|---------|------|----------|
+| resources       | Resources to describe                    |         | `ResourceConfigQuery[]` | **Yes** |
+| includeSynonyms | Include config synonyms in response      | `false` | `Boolean` | No |
+
+Available `ConfigResourceTypes`:
+
+| Type           | Value | Description |
+|----------------|-------|-------------|
+| `UNKNOWN`      | `0`   | Unknown resource type |
+| `TOPIC`        | `2`   | Topic configuration |
+| `BROKER`       | `4`   | Broker configuration |
+| `BROKER_LOGGER`| `8`   | Broker logger configuration |
 
 Returning all configs for a given resource:
 
@@ -349,8 +422,6 @@ await admin.describeConfigs({
 })
 ```
 
-Take a look at [configResourceTypes](https://github.com/tulios/kafkajs/blob/master/src/protocol/configResourceTypes.js) for a complete list of resources.
-
 Example response:
 
 ```javascript
@@ -363,7 +434,8 @@ Example response:
                 isDefault: true,
                 configSource: 5,
                 isSensitive: false,
-                readOnly: false
+                readOnly: false,
+                configSynonyms: []
             }],
             errorCode: 0,
             errorMessage: null,
@@ -377,7 +449,7 @@ Example response:
 
 ## <a name="alter-configs"></a> Alter configs
 
-Update the configuration for the specified resources.
+Update the configuration for the specified resources. **Warning:** This replaces ALL configs for the resource. Use [incrementalAlterConfigs](#incremental-alter-configs) instead if you only want to change specific entries.
 
 ```javascript
 await admin.alterConfigs({
@@ -386,6 +458,11 @@ await admin.alterConfigs({
 })
 ```
 
+| property     | description                                      | default | type | required |
+|-------------|--------------------------------------------------|---------|------|----------|
+| resources   | Resources to alter                               |         | `IResourceConfig[]` | **Yes** |
+| validateOnly | Validate only, don't apply changes              | `false` | `Boolean` | No |
+
 `ResourceConfig` structure:
 
 ```javascript
@@ -393,15 +470,6 @@ await admin.alterConfigs({
     type: <ConfigResourceType>,
     name: <String>,
     configEntries: <ResourceConfigEntry[]>
-}
-```
-
-`ResourceConfigEntry` structure:
-
-```javascript
-{
-    name: <String>,
-    value: <String>
 }
 ```
 
@@ -419,20 +487,58 @@ await admin.alterConfigs({
 })
 ```
 
-Take a look at [configResourceTypes](https://github.com/tulios/kafkajs/blob/master/src/protocol/configResourceTypes.js) for a complete list of resources.
+## <a name="incremental-alter-configs"></a> Incremental Alter Configs
 
-Example response:
+> **New in v3.0.0 docs.** Requires Kafka 2.3+.
+
+Incrementally update the configuration for the specified resources. Unlike `alterConfigs`, this method only changes the specified config entries without replacing all configs. **This is the recommended way to modify configs.**
+
+```javascript
+await admin.incrementalAlterConfigs({
+    validateOnly: false,
+    resources: <IncrementalAlterConfigsResource[]>
+})
+```
+
+| property     | description                           | default | type | required |
+|-------------|---------------------------------------|---------|------|----------|
+| resources   | Resources to alter                    |         | `IncrementalAlterConfigsResource[]` | **Yes** |
+| validateOnly | Validate only, don't apply changes   | `false` | `Boolean` | No |
+
+`IncrementalAlterConfigEntry` structure:
 
 ```javascript
 {
-    resources: [{
-        errorCode: 0,
-        errorMessage: null,
-        resourceName: 'topic-name',
-        resourceType: 2,
-    }],
-    throttleTime: 0,
+    name: <String>,
+    configOperation: <ConfigOperationTypes>,
+    value: <String>
 }
+```
+
+Config operation types (`ConfigOperationTypes`):
+
+| Operation  | Value | Description |
+|------------|-------|-------------|
+| `SET`      | `0`   | Set the value of the config entry |
+| `DELETE`   | `1`   | Reset the config entry to its default value |
+| `APPEND`   | `2`   | Append the value to the existing config (for list-type configs) |
+| `SUBTRACT` | `3`   | Remove the value from the existing config (for list-type configs) |
+
+Example:
+
+```javascript
+const { ConfigResourceTypes, ConfigOperationTypes } = require('kafkajs')
+
+await admin.incrementalAlterConfigs({
+    resources: [{
+        type: ConfigResourceTypes.TOPIC,
+        name: 'topic-name',
+        configEntries: [
+            { name: 'cleanup.policy', configOperation: ConfigOperationTypes.SET, value: 'compact' },
+            { name: 'max.message.bytes', configOperation: ConfigOperationTypes.DELETE, value: '' },
+        ]
+    }]
+})
 ```
 
 ## <a name="list-groups"></a> List groups
@@ -471,6 +577,7 @@ await admin.describeGroups([ 'testgroup' ])
 //         memberAssignment: Buffer,
 //         memberId: 'test-3e93246fe1f4efa7380a-ff87d06d-5c87-49b8-a1f1-c4f8e3ffe7eb',
 //         memberMetadata: Buffer,
+//         groupInstanceId: 'instance-1', // present with static membership
 //       },
 //     ],
 //     protocol: 'RoundRobinAssigner',
@@ -479,9 +586,21 @@ await admin.describeGroups([ 'testgroup' ])
 //   }]
 // }
 ```
-Helper function to decode `memeberMetadata` and `memberAssignment` is available in `AssignerProtocol`
 
-Example: 
+Consumer group state values:
+
+| State                 | Description |
+|-----------------------|-------------|
+| `Unknown`             | The group state is unknown |
+| `PreparingRebalance`  | The group is preparing to rebalance |
+| `CompletingRebalance` | The group is completing rebalance |
+| `Stable`              | The group is stable and consuming |
+| `Dead`                | The group has been deleted |
+| `Empty`               | The group has no active members |
+
+Helper function to decode `memberMetadata` and `memberAssignment` is available in `AssignerProtocol`
+
+Example:
 
 `const memberMetadata = AssignerProtocol.MemberMetadata.decode(memberMetadata)`
 
@@ -502,14 +621,6 @@ Example:
 
 ```javascript
 await admin.deleteGroups(['group-test'])
-```
-
-Example response:
-
-```javascript
-[
-    {groupId: 'testgroup', errorCode: 'consumer'}
-]
 ```
 
 Because this method accepts multiple `groupId`s, it can fail to delete one or more of the provided groups. In case of failure, it will throw an error containing the failed groups:
@@ -538,6 +649,11 @@ await admin.deleteTopicRecords({
     partitions: <SeekEntry[]>,
 })
 ```
+
+| property   | description                            | type     | required |
+|------------|----------------------------------------|----------|----------|
+| topic      | Topic name                             | `String` | **Yes** |
+| partitions | Array of partition-offset entries       | `SeekEntry[]` | **Yes** |
 
 Example:
 
@@ -585,6 +701,57 @@ const acl = [
 await admin.createAcls({ acl })
 ```
 
+### ACL Enum Reference
+
+**AclResourceTypes:**
+
+| Name                | Value |
+|---------------------|-------|
+| UNKNOWN             | 0     |
+| ANY                 | 1     |
+| TOPIC               | 2     |
+| GROUP               | 3     |
+| CLUSTER             | 4     |
+| TRANSACTIONAL_ID    | 5     |
+| DELEGATION_TOKEN    | 6     |
+
+**AclOperationTypes:**
+
+| Name              | Value |
+|-------------------|-------|
+| UNKNOWN           | 0     |
+| ANY               | 1     |
+| ALL               | 2     |
+| READ              | 3     |
+| WRITE             | 4     |
+| CREATE            | 5     |
+| DELETE            | 6     |
+| ALTER             | 7     |
+| DESCRIBE          | 8     |
+| CLUSTER_ACTION    | 9     |
+| DESCRIBE_CONFIGS  | 10    |
+| ALTER_CONFIGS     | 11    |
+| IDEMPOTENT_WRITE  | 12    |
+
+**AclPermissionTypes:**
+
+| Name    | Value |
+|---------|-------|
+| UNKNOWN | 0     |
+| ANY     | 1     |
+| DENY    | 2     |
+| ALLOW   | 3     |
+
+**ResourcePatternTypes:**
+
+| Name     | Value |
+|----------|-------|
+| UNKNOWN  | 0     |
+| ANY      | 1     |
+| MATCH    | 2     |
+| LITERAL  | 3     |
+| PREFIXED | 4     |
+
 Be aware that the security features might be disabled in your cluster. In that case, the operation will throw an error:
 
 ```sh
@@ -602,7 +769,7 @@ const {
 } = require('kafkajs')
 
 const acl = {
-  resourceName: 'topic-name,
+  resourceName: 'topic-name',
   resourceType: AclResourceTypes.TOPIC,
   host: '*',
   permissionType: AclPermissionTypes.ALLOW,
@@ -611,33 +778,6 @@ const acl = {
 }
 
 await admin.deleteAcls({ filters: [acl] })
-// {
-//   filterResponses: [
-//     {
-//     errorCode: 0,
-//     errorMessage: null,
-//     matchingAcls: [
-//         {
-//         errorCode: 0,
-//         errorMessage: null,
-//         resourceType: AclResourceTypes.TOPIC,
-//         resourceName: 'topic-name',
-//         resourcePatternType: ResourcePatternTypes.LITERAL,
-//         principal: 'User:alice',
-//         host: '*',
-//         operation: AclOperationTypes.ALL,
-//         permissionType: AclPermissionTypes.ALLOW,
-//         },
-//     ],
-//     },
-//   ],
-// }
-```
-
-Be aware that the security features might be disabled in your cluster. In that case, the operation will throw an error:
-
-```sh
-KafkaJSProtocolError: Security features are disabled
 ```
 
 ## <a name="describe-acl"></a> Describe ACL
@@ -651,112 +791,17 @@ const {
 } = require('kafkajs')
 
 await admin.describeAcls({
-  resourceName: 'topic-name,
+  resourceName: 'topic-name',
   resourceType: AclResourceTypes.TOPIC,
   host: '*',
   permissionType: AclPermissionTypes.ALLOW,
   operation: AclOperationTypes.ANY,
   resourcePatternTypeFilter: ResourcePatternTypes.LITERAL,
 })
-// {
-//   resources: [
-//     {
-//       resourceType: AclResourceTypes.TOPIC,
-//       resourceName: 'topic-name,
-//       resourcePatternType: ResourcePatternTypes.LITERAL,
-//       acls: [
-//         {
-//           principal: 'User:alice',
-//           host: '*',
-//           operation: AclOperationTypes.ALL,
-//           permissionType: AclPermissionTypes.ALLOW,
-//         },
-//       ],
-//     },
-//   ],
-// }
-```
-
-Be aware that the security features might be disabled in your cluster. In that case, the operation will throw an error:
-
-```sh
-KafkaJSProtocolError: Security features are disabled
-```
-
-## <a name="incremental-alter-configs"></a> Incremental Alter Configs
-
-Incrementally update the configuration for the specified resources. Unlike `alterConfigs`, this method only changes the specified config entries without replacing all configs. This is the recommended way to modify configs on Kafka 2.3+ brokers.
-
-```javascript
-await admin.incrementalAlterConfigs({
-    validateOnly: false,
-    resources: <IncrementalAlterConfigsResource[]>
-})
-```
-
-`IncrementalAlterConfigsResource` structure:
-
-```javascript
-{
-    type: <ConfigResourceType>,
-    name: <String>,
-    configEntries: <IncrementalAlterConfigEntry[]>
-}
-```
-
-`IncrementalAlterConfigEntry` structure:
-
-```javascript
-{
-    name: <String>,
-    configOperation: <ConfigOperationTypes>,  // 0=SET, 1=DELETE, 2=APPEND, 3=SUBTRACT
-    value: <String>
-}
-```
-
-Config operation types:
-
-| Operation | Value | Description |
-|-----------|-------|-------------|
-| SET       | 0     | Set the value of the config entry |
-| DELETE    | 1     | Reset the config entry to its default value |
-| APPEND   | 2     | Append the value to the existing config (for list-type configs) |
-| SUBTRACT  | 3     | Remove the value from the existing config (for list-type configs) |
-
-Example:
-
-```javascript
-const { ConfigResourceTypes, ConfigOperationTypes } = require('kafkajs')
-
-await admin.incrementalAlterConfigs({
-    resources: [{
-        type: ConfigResourceTypes.TOPIC,
-        name: 'topic-name',
-        configEntries: [
-            { name: 'cleanup.policy', configOperation: ConfigOperationTypes.SET, value: 'compact' },
-            { name: 'max.message.bytes', configOperation: ConfigOperationTypes.DELETE, value: '' },
-        ]
-    }]
-})
-```
-
-Take a look at [configResourceTypes](https://github.com/tulios/kafkajs/blob/master/src/protocol/configResourceTypes.js) for a complete list of resources.
-
-Example response:
-
-```javascript
-{
-    resources: [{
-        errorCode: 0,
-        errorMessage: null,
-        resourceName: 'topic-name',
-        resourceType: 2,
-    }],
-    throttleTime: 0,
-}
 ```
 
 ## <a name="alter-partition-reassignments"></a> Alter Partition Reassignments
+
 This is used to reassign the replicas that partitions are on. This method will throw exceptions in the case of errors.
 
 ```typescript
@@ -765,6 +810,11 @@ await admin.alterPartitionReassignments({
   timeout: <Number> // optional - 5000 default
 })
 ```
+
+| property | description                     | default | type | required |
+|----------|---------------------------------|---------|------|----------|
+| topics   | Partition reassignment array    |         | `PartitionReassignment[]` | **Yes** |
+| timeout  | Timeout in ms                   | `5000`  | `Number` | No |
 
 PartitionReassignment Structure:
 ```typescript
@@ -775,7 +825,8 @@ PartitionReassignment Structure:
 ```
 
 ## <a name="list-partition-reassignments"></a> List Partition Reassignments
-This is used to list current partition reassignments in progress. This method will throw exceptions in the case of errors and resolve to ListPartitionReassignmentsResponse on success. If a requested partition does not exist it will not be included in the response.
+
+This is used to list current partition reassignments in progress.
 
 ```javascript
 await admin.listPartitionReassignments({
@@ -784,41 +835,25 @@ await admin.listPartitionReassignments({
 })
 ```
 
-TopicPartitions Structure:
-```typescript
-{
-  topic: <String>,
-  partitions: <Array>
-}
-```
+| property | description                                         | default | type | required |
+|----------|-----------------------------------------------------|---------|------|----------|
+| topics   | Topic partitions to query. Omit for all topics      |         | `TopicPartitions[]` | No |
+| timeout  | Timeout in ms                                       | `5000`  | `Number` | No |
 
-Resulting ListPartitionReassignmentsResponse Structure:
-```typescript
-{
-  topics: <OngoingTopicReassignment[]>
-}
-```
-OngoingTopicReassignment Structure:
-```typescript
-{
-  topic: <String>,
-  partitions: <OngoingPartitionReassignment[]>
-}
-```
-OngoingPartitionReassignment Structure:
-```typescript
-{
-  partitionIndex: <Number>,
-  replicas: <Number[]>, // The current replica set
-  addingReplicas: <Number[]> // The set of replicas being added
-  removingReplicas: <Number[]> // The set of replicas being removed
-}
-```
-**Note:** If a partition is not going through a reassignment, its AddingReplicas and RemovingReplicas fields will simply be empty.
+Response includes `OngoingPartitionReassignment`:
+
+| field             | description                                 | type |
+|-------------------|---------------------------------------------|------|
+| partitionIndex    | Partition number                             | `Number` |
+| replicas          | Current replica set                          | `Number[]` |
+| addingReplicas    | Replicas being added (empty if not ongoing)  | `Number[]` |
+| removingReplicas  | Replicas being removed (empty if not ongoing)| `Number[]` |
 
 ## <a name="elect-leaders"></a> Elect Leaders
 
-Triggers a leader election for one or more partitions. This method requires Kafka 2.4+.
+> Requires Kafka 2.4+
+
+Triggers a leader election for one or more partitions.
 
 ```javascript
 await admin.electLeaders({
@@ -827,6 +862,19 @@ await admin.electLeaders({
   timeout: 30000,
 })
 ```
+
+| property        | description                                         | default | type | required |
+|-----------------|-----------------------------------------------------|---------|------|----------|
+| electionType    | `0` = PREFERRED, `1` = UNCLEAN                      | `0`     | `Number` | No |
+| topicPartitions | Topics and partitions. `null` for all                | `null`  | `Array \| null` | No |
+| timeout         | Timeout in ms                                        | `30000` | `Number` | No |
+
+Election types (`ElectionType` enum):
+
+| Type       | Value | Description |
+|------------|-------|-------------|
+| `PREFERRED`| `0`   | Elect the preferred (first) replica as leader |
+| `UNCLEAN`  | `1`   | Elect any available replica as leader (may lose data) |
 
 ## <a name="delete-offsets"></a> Delete Offsets
 
@@ -840,14 +888,25 @@ await admin.deleteOffsets({
 })
 ```
 
+| property   | description                            | type     | required |
+|------------|----------------------------------------|----------|----------|
+| groupId    | Consumer group ID                      | `String` | **Yes** |
+| topic      | Topic name                             | `String` | **Yes** |
+| partitions | Partitions to delete offsets for       | `Array<{ partition: number }>` | **Yes** |
+
 ## <a name="describe-log-dirs"></a> Describe Log Dirs
 
 Returns information about log directories on all brokers.
 
 ```javascript
 const logDirs = await admin.describeLogDirs({ topics: ['my-topic'] })
-// Returns log directory info for each broker
 ```
+
+| property | description                                         | default | type | required |
+|----------|-----------------------------------------------------|---------|------|----------|
+| topics   | Topics and partitions to describe. `null` for all    | `null`  | `Array \| null` | No |
+
+Response includes per-broker log directory info with topic partition sizes and offset lags.
 
 ## <a name="describe-producers"></a> Describe Producers
 
@@ -859,6 +918,17 @@ const result = await admin.describeProducers({
 })
 ```
 
+Response includes `ActiveProducer`:
+
+| field                  | description                          | type |
+|-----------------------|--------------------------------------|------|
+| producerId            | Producer ID                           | `String` |
+| producerEpoch         | Producer epoch                        | `Number` |
+| lastSequence          | Last sequence number                  | `Number` |
+| lastTimestamp         | Last message timestamp                | `String` |
+| coordinatorEpoch      | Transaction coordinator epoch         | `Number` |
+| currentTxnStartOffset | Start offset of current transaction   | `String` |
+
 ## <a name="describe-transactions"></a> Describe Transactions
 
 Returns details about active transactions.
@@ -868,6 +938,22 @@ const result = await admin.describeTransactions({
   transactionalIds: ['my-txn-id-1', 'my-txn-id-2'],
 })
 ```
+
+| property         | description                    | type       | required |
+|------------------|--------------------------------|------------|----------|
+| transactionalIds | Transaction IDs to describe    | `String[]` | **Yes** |
+
+Response includes `TransactionState`:
+
+| field                   | description                  | type |
+|------------------------|------------------------------|------|
+| transactionalId        | Transaction ID                | `String` |
+| state                  | Transaction state             | `String` |
+| producerId             | Producer ID                   | `String` |
+| producerEpoch          | Producer epoch                | `Number` |
+| transactionTimeoutMs   | Transaction timeout           | `Number` |
+| transactionStartTimeMs | Transaction start time        | `String` |
+| topics                 | Topics involved in transaction| `Array` |
 
 ## <a name="list-transactions"></a> List Transactions
 
@@ -880,9 +966,14 @@ const result = await admin.listTransactions({
 })
 ```
 
+| property           | description                        | default | type       | required |
+|--------------------|------------------------------------|---------|------------|----------|
+| stateFilters       | Filter by transaction state        | `[]`    | `String[]` | No |
+| producerIdFilters  | Filter by producer ID              | `[]`    | `Number[]` | No |
+
 ## <a name="share-group-describe"></a> Describe Share Groups
 
-> **Requires Kafka 4.0+**
+> **New in v3.0.0. Requires Kafka 4.0+**
 
 Describes one or more Share Groups (KIP-932). Share Groups provide queue-like consumption where multiple consumers process records from the same partitions concurrently with per-record acknowledgement.
 
@@ -891,15 +982,40 @@ const result = await admin.shareGroupDescribe({
   groupIds: ['my-share-group'],
   includeAuthorizedOperations: false,
 })
+```
 
-// result.groups[0]:
-// {
-//   groupId: 'my-share-group',
-//   groupState: 'Stable',
-//   groupEpoch: 1,
-//   assignorName: 'uniform',
-//   topics: [{ topicId, topicName, partitions: [...] }],
-//   members: [{ memberId, rackId, memberEpoch, clientId, clientHost, subscribedTopicNames, assignment }],
-//   authorizedOperations: 0,
-// }
+| property                     | description                       | default | type       | required |
+|------------------------------|-----------------------------------|---------|------------|----------|
+| groupIds                     | Share Group IDs to describe       |         | `String[]` | **Yes** |
+| includeAuthorizedOperations  | Include authorized ops in response| `false` | `Boolean`  | No |
+
+Response includes `ShareGroupDescribeGroup`:
+
+| field            | description                        | type |
+|------------------|------------------------------------|------|
+| groupId          | Share group ID                      | `String` |
+| groupState       | Group state                         | `String` |
+| groupEpoch       | Group epoch                         | `Number` |
+| assignmentEpoch  | Assignment epoch                    | `Number` |
+| assignorName     | Name of the assignor                | `String` |
+| topics           | Topic assignments with partitions   | `Array` |
+| members          | Group members with assignments      | `ShareGroupMember[]` |
+
+## Instrumentation Events
+
+The admin client emits instrumentation events for monitoring:
+
+```javascript
+const { CONNECT, DISCONNECT, REQUEST, REQUEST_TIMEOUT, REQUEST_QUEUE_SIZE } = admin.events
+
+admin.on(CONNECT, e => console.log('Admin connected'))
+admin.on(DISCONNECT, e => console.log('Admin disconnected'))
+admin.on(REQUEST, e => console.log('Request', e.payload))
+```
+
+The `on` method returns a function to remove the listener:
+
+```javascript
+const removeListener = admin.on(admin.events.REQUEST, e => {})
+removeListener() // stop listening
 ```
