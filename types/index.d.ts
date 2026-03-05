@@ -6,6 +6,9 @@ import * as net from 'net'
 type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never }
 type XOR<T, U> = T | U extends object ? (Without<T, U> & U) | (Without<U, T> & T) : T | U
 
+/** UUID string in the format "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" or null for nil UUID */
+export type KafkaUUID = string | null
+
 export class Kafka {
   constructor(config: KafkaConfig)
   producer(config?: ProducerConfig): Producer
@@ -13,6 +16,9 @@ export class Kafka {
   admin(config?: AdminConfig): Admin
   logger(): Logger
 }
+
+export function isRebalancing(e: Error): boolean
+export function isKafkaJSError(e: Error): boolean
 
 export type BrokersFunction = () => string[] | Promise<string[]>
 
@@ -397,6 +403,386 @@ export interface IncrementalAlterConfigsResponse {
   resourceName: string
 }
 
+/** Share Group acknowledgement types (KIP-932) */
+export enum ShareAcknowledgeType {
+  ACCEPT = 1,
+  RELEASE = 2,
+  REJECT = 3,
+  GAP = 4,
+}
+
+/** Election types for electLeaders */
+export enum ElectionType {
+  PREFERRED = 0,
+  UNCLEAN = 1,
+}
+
+// ---- Share Group Interfaces ----
+
+export interface ShareGroupHeartbeatRequest {
+  groupId: string
+  memberId: string
+  memberEpoch: number
+  rackId?: string | null
+  subscribedTopicNames?: string[] | null
+  topicPartitions?: Array<{ topicId: KafkaUUID; partitions: number[] }> | null
+}
+
+export interface ShareGroupHeartbeatResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  memberId: string | null
+  memberEpoch: number
+  heartbeatIntervalMs: number
+  assignment: Array<{ topicId: KafkaUUID; partitions: number[] }> | null
+}
+
+export interface ShareGroupDescribeRequest {
+  groupIds: string[]
+  includeAuthorizedOperations?: boolean
+}
+
+export interface ShareGroupDescribeGroup {
+  errorCode: number
+  errorMessage: string | null
+  groupId: string
+  groupState: string
+  groupEpoch: number
+  assignmentEpoch: number
+  assignorName: string
+  topics: Array<{
+    topicId: KafkaUUID
+    topicName: string
+    partitions: Array<{
+      partitionIndex: number
+      startOffset: string
+      stateEpoch: number
+      leaderEpoch: number
+    }>
+  }>
+  members: Array<ShareGroupMember>
+  authorizedOperations: number
+}
+
+export interface ShareGroupMember {
+  memberId: string
+  rackId: string | null
+  memberEpoch: number
+  clientId: string
+  clientHost: string
+  subscribedTopicNames: string[]
+  assignment: Array<{ topicId: KafkaUUID; partitions: number[] }>
+}
+
+export interface ShareGroupDescribeResponse {
+  throttleTime: number
+  groups: ShareGroupDescribeGroup[]
+}
+
+export interface ShareFetchAcknowledgementBatch {
+  firstOffset: string
+  lastOffset: string
+  acknowledgeTypes: ShareAcknowledgeType[]
+}
+
+export interface ShareFetchPartitionRequest {
+  partitionIndex: number
+  partitionMaxBytes?: number
+  acknowledgementBatches?: ShareFetchAcknowledgementBatch[]
+}
+
+export interface ShareFetchTopicRequest {
+  topicId: KafkaUUID
+  partitions: ShareFetchPartitionRequest[]
+}
+
+export interface ShareFetchRequest {
+  groupId: string
+  memberId: string
+  memberEpoch: number
+  maxWaitMs?: number
+  minBytes?: number
+  maxBytes?: number
+  topics?: ShareFetchTopicRequest[]
+  forgottenTopicsData?: Array<{ topicId: KafkaUUID; partitions: number[] }>
+}
+
+export interface ShareFetchAcquiredRecords {
+  firstOffset: string
+  lastOffset: string
+  deliveryCount: number
+}
+
+export interface ShareFetchPartitionResponse {
+  partitionIndex: number
+  errorCode: number
+  errorMessage: string | null
+  currentLeader: { leaderId: number; leaderEpoch: number }
+  snapshotId: { epoch: number; offset: string }
+  acquiredRecords: ShareFetchAcquiredRecords[]
+}
+
+export interface ShareFetchTopicResponse {
+  topicId: KafkaUUID
+  partitions: ShareFetchPartitionResponse[]
+}
+
+export interface ShareFetchResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  responses: ShareFetchTopicResponse[]
+}
+
+export interface ShareAcknowledgeRequest {
+  groupId: string
+  memberId: string
+  memberEpoch: number
+  topics?: Array<{
+    topicId: KafkaUUID
+    partitions: Array<{
+      partitionIndex: number
+      acknowledgementBatches: ShareFetchAcknowledgementBatch[]
+    }>
+  }>
+}
+
+export interface ShareAcknowledgePartitionResponse {
+  partitionIndex: number
+  errorCode: number
+  errorMessage: string | null
+  currentLeader: { leaderId: number; leaderEpoch: number }
+}
+
+export interface ShareAcknowledgeResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  responses: Array<{
+    topicId: KafkaUUID
+    partitions: ShareAcknowledgePartitionResponse[]
+  }>
+}
+
+// ---- KRaft Voter Management Interfaces ----
+
+export interface RaftVoterListener {
+  name: string
+  host: string
+  port: number
+  securityProtocol?: number
+}
+
+export interface RaftVoterCurrentLeader {
+  leaderId: number
+  host: string
+  port: number
+}
+
+export interface AddRaftVoterRequest {
+  clusterId?: string | null
+  timeoutMs?: number
+  voterId: number
+  voterDirectoryId: KafkaUUID
+  listeners?: RaftVoterListener[]
+}
+
+export interface AddRaftVoterResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  currentLeader: RaftVoterCurrentLeader
+}
+
+export interface RemoveRaftVoterRequest {
+  clusterId?: string | null
+  timeoutMs?: number
+  voterId: number
+  voterDirectoryId: KafkaUUID
+}
+
+export interface RemoveRaftVoterResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  currentLeader: RaftVoterCurrentLeader
+}
+
+export interface UpdateRaftVoterRequest {
+  clusterId?: string | null
+  currentLeaderEpoch: number
+  voterId: number
+  voterDirectoryId: KafkaUUID
+  listeners?: RaftVoterListener[]
+  kRaftVersionFeature?: { minSupportedVersion: number; maxSupportedVersion: number } | null
+}
+
+export interface UpdateRaftVoterResponse {
+  throttleTime: number
+  errorCode: number
+  errorMessage: string | null
+  currentLeader: RaftVoterCurrentLeader
+}
+
+// ---- ReadShareGroupStateSummary Interfaces ----
+
+export interface ReadShareGroupStateSummaryRequest {
+  topics?: Array<{
+    groupId: string
+    topicId: KafkaUUID
+    partitions: Array<{ partitionIndex: number; leaderEpoch: number }>
+  }>
+}
+
+export interface ReadShareGroupStateSummaryResponse {
+  throttleTime: number
+  results: Array<{
+    groupId: string
+    topicId: KafkaUUID
+    partitions: Array<{
+      partitionIndex: number
+      errorCode: number
+      errorMessage: string | null
+      stateEpoch: number
+      startOffset: string
+    }>
+  }>
+}
+
+// ---- Elect Leaders Interfaces ----
+
+export interface ElectLeadersRequest {
+  electionType?: ElectionType | number
+  topicPartitions?: Array<{ topic: string; partitions: number[] }> | null
+  timeout?: number
+}
+
+export interface ElectLeadersResponse {
+  throttleTime: number
+  errorCode: number
+  replicaElectionResults: Array<{
+    topic: string
+    partitionResults: Array<{
+      partitionId: number
+      errorCode: number
+      errorMessage: string | null
+    }>
+  }>
+}
+
+// ---- Offset Delete Interfaces ----
+
+export interface DeleteOffsetsRequest {
+  groupId: string
+  topic: string
+  partitions: Array<{ partition: number }>
+}
+
+export interface DeleteOffsetsResponse {
+  errorCode: number
+  throttleTime: number
+  topics: Array<{
+    name: string
+    partitions: Array<{
+      partitionIndex: number
+      errorCode: number
+    }>
+  }>
+}
+
+// ---- Describe Log Dirs Interfaces ----
+
+export interface DescribeLogDirsResponse {
+  brokers: Array<{
+    brokerId: number
+    throttleTime: number
+    results: Array<{
+      errorCode: number
+      logDir: string
+      topics: Array<{
+        name: string
+        partitions: Array<{
+          partitionIndex: number
+          partitionSize: string
+          offsetLag: string
+          isFutureKey: boolean
+        }>
+      }>
+    }>
+  }>
+}
+
+// ---- Describe Producers Interfaces ----
+
+export interface ActiveProducer {
+  producerId: string
+  producerEpoch: number
+  lastSequence: number
+  lastTimestamp: string
+  coordinatorEpoch: number
+  currentTxnStartOffset: string
+}
+
+export interface DescribeProducersResponse {
+  topics: Array<{
+    name: string
+    partitions: Array<{
+      partitionIndex: number
+      errorCode: number
+      activeProducers: ActiveProducer[]
+    }>
+  }>
+}
+
+// ---- Describe Transactions Interfaces ----
+
+export interface TransactionState {
+  errorCode: number
+  transactionalId: string
+  state: string
+  producerId: string
+  producerEpoch: number
+  transactionTimeoutMs: number
+  transactionStartTimeMs: string
+  topics: Array<{
+    topic: string
+    partitions: number[]
+  }>
+}
+
+export interface DescribeTransactionsResponse {
+  transactionStates: TransactionState[]
+}
+
+// ---- List Transactions Interfaces ----
+
+export interface TransactionListing {
+  transactionalId: string
+  producerId: string
+  transactionState: string
+}
+
+export interface ListTransactionsResponse {
+  transactionStates: TransactionListing[]
+}
+
+// ---- Describe Cluster Interfaces ----
+
+export interface ClusterBroker {
+  nodeId: number
+  host: string
+  port: number
+  rack?: string | null
+}
+
+export interface DescribeClusterResponse {
+  brokers: ClusterBroker[]
+  controller: number | null
+  clusterId: string
+  clusterAuthorizedOperations?: number
+}
+
 type ValueOf<T> = T[keyof T]
 
 export type AdminEvents = {
@@ -550,11 +936,7 @@ export type Admin = {
   }): Promise<Array<{ topic: string; partitions: FetchOffsetsPartition[] }>>
   fetchTopicOffsets(topic: string): Promise<Array<SeekEntry & { high: string; low: string }>>
   fetchTopicOffsetsByTimestamp(topic: string, timestamp?: number): Promise<Array<SeekEntry>>
-  describeCluster(): Promise<{
-    brokers: Array<{ nodeId: number; host: string; port: number }>
-    controller: number | null
-    clusterId: string
-  }>
+  describeCluster(): Promise<DescribeClusterResponse>
   setOffsets(options: { groupId: string; topic: string; partitions: SeekEntry[] }): Promise<void>
   resetOffsets(options: { groupId: string; topic: string; earliest: boolean }): Promise<void>
   describeConfigs(configs: {
@@ -581,118 +963,22 @@ export type Admin = {
     topics?: TopicPartitions[]
     timeout?: number
   }): Promise<ListPartitionReassignmentsResponse>
-  electLeaders(options?: {
-    electionType?: number
-    topicPartitions?: Array<{ topic: string; partitions: number[] }> | null
-    timeout?: number
-  }): Promise<any>
-  deleteOffsets(options: {
-    groupId: string
-    topic: string
-    partitions: number[]
-  }): Promise<any>
+  electLeaders(options?: ElectLeadersRequest): Promise<ElectLeadersResponse>
+  deleteOffsets(options: DeleteOffsetsRequest): Promise<DeleteOffsetsResponse>
   describeLogDirs(options?: {
     topics?: Array<{ topic: string; partitions: number[] }> | null
-  }): Promise<{
-    brokers: Array<{
-      brokerId: number
-      throttleTime: number
-      results: Array<{
-        errorCode: number
-        logDir: string
-        topics: Array<{
-          name: string
-          partitions: Array<{
-            partitionIndex: number
-            partitionSize: string
-            offsetLag: string
-            isFutureKey: boolean
-          }>
-        }>
-      }>
-    }>
-  }>
+  }): Promise<DescribeLogDirsResponse>
   describeProducers(options: {
     topics: Array<{ topic: string; partitions: number[] }>
-  }): Promise<{
-    topics: Array<{
-      name: string
-      partitions: Array<{
-        partitionIndex: number
-        errorCode: number
-        activeProducers: Array<{
-          producerId: string
-          producerEpoch: number
-          lastSequence: number
-          lastTimestamp: string
-          coordinatorEpoch: number
-          currentTxnStartOffset: string
-        }>
-      }>
-    }>
-  }>
+  }): Promise<DescribeProducersResponse>
   describeTransactions(options: {
     transactionalIds: string[]
-  }): Promise<{
-    transactionStates: Array<{
-      errorCode: number
-      transactionalId: string
-      state: string
-      producerId: string
-      producerEpoch: number
-      transactionTimeoutMs: number
-      transactionStartTimeMs: string
-      topics: Array<{
-        topic: string
-        partitions: number[]
-      }>
-    }>
-  }>
+  }): Promise<DescribeTransactionsResponse>
   listTransactions(options?: {
     stateFilters?: string[]
     producerIdFilters?: number[]
-  }): Promise<{
-    transactionStates: Array<{
-      transactionalId: string
-      producerId: string
-      transactionState: string
-    }>
-  }>
-  shareGroupDescribe(options: {
-    groupIds: string[]
-    includeAuthorizedOperations?: boolean
-  }): Promise<{
-    throttleTime: number
-    groups: Array<{
-      errorCode: number
-      errorMessage: string | null
-      groupId: string
-      groupState: string
-      groupEpoch: number
-      assignmentEpoch: number
-      assignorName: string
-      topics: Array<{
-        topicId: string | null
-        topicName: string
-        partitions: Array<{
-          partitionIndex: number
-          startOffset: string
-          stateEpoch: number
-          leaderEpoch: number
-        }>
-      }>
-      members: Array<{
-        memberId: string
-        rackId: string | null
-        memberEpoch: number
-        clientId: string
-        clientHost: string
-        subscribedTopicNames: string[]
-        assignment: Array<{ topicId: string | null; partitions: number[] }>
-      }>
-      authorizedOperations: number
-    }>
-  }>
+  }): Promise<ListTransactionsResponse>
+  shareGroupDescribe(options: ShareGroupDescribeRequest): Promise<ShareGroupDescribeResponse>
   logger(): Logger
   on(
     eventName: AdminEvents['CONNECT'],
@@ -800,7 +1086,7 @@ export type Broker = {
   disconnect(): Promise<void>
   apiVersions(): Promise<ApiVersions>
   metadata(topics: string[]): Promise<BrokerMetadata>
-  describeGroups: (options: { groupIds: string[] }) => Promise<any>
+  describeGroups(options: { groupIds: string[] }): Promise<any>
   offsetCommit(request: {
     groupId: string
     groupGenerationId: number
@@ -846,6 +1132,22 @@ export type Broker = {
     topics?: TopicPartitions[]
     timeout?: number
   }): Promise<ListPartitionReassignmentsResponse>
+  electLeaders(request: ElectLeadersRequest): Promise<ElectLeadersResponse>
+  offsetDelete(request: { groupId: string; topics: Array<{ name: string; partitions: Array<{ partitionIndex: number }> }> }): Promise<any>
+  describeCluster(request?: { includeClusterAuthorizedOperations?: boolean }): Promise<DescribeClusterResponse>
+  describeLogDirs(request?: { topics?: Array<{ topic: string; partitions?: number[] }> | null }): Promise<any>
+  describeProducers(request: { topics: Array<{ topic: string; partitions: number[] }> }): Promise<DescribeProducersResponse>
+  describeTransactions(request: { transactionalIds: string[] }): Promise<DescribeTransactionsResponse>
+  listTransactions(request?: { stateFilters?: string[]; producerIdFilters?: number[] }): Promise<ListTransactionsResponse>
+  offsetForLeaderEpoch(request: { replicaId?: number; topics: Array<{ topic: string; partitions: Array<{ partition: number; leaderEpoch: number; currentLeaderEpoch?: number }> }> }): Promise<any>
+  shareGroupHeartbeat(request: ShareGroupHeartbeatRequest): Promise<ShareGroupHeartbeatResponse>
+  shareGroupDescribe(request: ShareGroupDescribeRequest): Promise<ShareGroupDescribeResponse>
+  shareFetch(request: ShareFetchRequest): Promise<ShareFetchResponse>
+  shareAcknowledge(request: ShareAcknowledgeRequest): Promise<ShareAcknowledgeResponse>
+  addRaftVoter(request: AddRaftVoterRequest): Promise<AddRaftVoterResponse>
+  removeRaftVoter(request: RemoveRaftVoterRequest): Promise<RemoveRaftVoterResponse>
+  updateRaftVoter(request: UpdateRaftVoterRequest): Promise<UpdateRaftVoterResponse>
+  readShareGroupStateSummary(request: ReadShareGroupStateSummaryRequest): Promise<ReadShareGroupStateSummaryResponse>
 }
 
 interface MessageSetEntry {
@@ -1391,6 +1693,42 @@ export class KafkaJSDeleteGroupsError extends KafkaJSError {
 
 export class KafkaJSDeleteTopicRecordsError extends KafkaJSError {
   constructor(metadata: KafkaJSDeleteTopicRecordsErrorTopic)
+}
+
+export class KafkaJSConnectionClosedError extends KafkaJSError {
+  readonly host: string
+  readonly port: number
+  constructor(e: Error | string, metadata?: { host?: string; port?: number })
+}
+
+export class KafkaJSMemberIdRequired extends KafkaJSNonRetriableError {
+  readonly memberId: string
+  constructor(e: Error | string, metadata?: { memberId: string })
+}
+
+export class KafkaJSInvariantViolation extends KafkaJSNonRetriableError {
+  constructor(e: Error | string)
+}
+
+export class KafkaJSInvalidVarIntError extends KafkaJSNonRetriableError {
+  constructor(e: Error | string)
+}
+
+export class KafkaJSInvalidLongError extends KafkaJSNonRetriableError {
+  constructor(e: Error | string)
+}
+
+export class KafkaJSCreateTopicError extends KafkaJSProtocolError {
+  readonly topic: string
+  constructor(e: Error | string, metadata?: { topic: string })
+}
+
+export class KafkaJSFetcherRebalanceError extends KafkaJSError {
+  constructor(e?: Error | string)
+}
+
+export class KafkaJSNoBrokerAvailableError extends KafkaJSError {
+  constructor(e?: Error | string)
 }
 
 export interface KafkaJSDeleteGroupsErrorGroups {
