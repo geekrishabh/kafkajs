@@ -669,7 +669,7 @@ KAFKA_BROKERS=broker1:9092,broker2:9092 node examples/kraft-producer.js
 
 ## Dependency Upgrades (v3.0.0)
 
-KafkaJS v3.0.0 bumps the package version from 2.2.4 to 3.0.0. The minimum Node.js version remains **14.0.0**.
+KafkaJS v3.0.0 bumps the package version from 2.2.4 to 3.0.0. The minimum Node.js version is now **20.0.0** (npm >= 10.0.0).
 
 ### Updated devDependencies
 

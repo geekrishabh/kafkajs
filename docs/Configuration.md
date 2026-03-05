@@ -19,10 +19,10 @@ const kafka = new Kafka({
 
 KafkaJS automatically negotiates protocol versions with the broker. No manual configuration is needed.
 
-| KafkaJS Version | Kafka Broker Versions | Node.js |
-|----------------|----------------------|---------|
-| 3.0.0+         | 1.0.0 - 4.2.0       | >= 14.0 |
-| 2.0.0 - 2.2.4  | 0.11.0 - 3.x        | >= 12.0 |
+| KafkaJS Version | Kafka Broker Versions | Node.js | npm |
+|----------------|----------------------|---------|-----|
+| 3.0.0+         | 1.0.0 - 4.2.0       | >= 20.0 | >= 10.0 |
+| 2.0.0 - 2.2.4  | 0.11.0 - 3.x        | >= 12.0 | >= 6.0  |
 
 ### KRaft Mode (Kafka 4.0+)
 

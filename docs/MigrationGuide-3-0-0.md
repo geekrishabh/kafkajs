@@ -78,10 +78,20 @@ All error codes through Kafka 4.2.0 (codes 89-127) including Share Group errors.
 
 Encoder/decoder support for 128-bit UUID fields, used by Share Group and KRaft APIs for topic and voter identifiers.
 
+### Node.js 20+ Required
+
+KafkaJS v3.0.0 requires Node.js >= 20.0.0 and npm >= 10.0.0. Node 14/16/18 are no longer supported.
+
 ## Upgrading
 
 ```bash
 npm install kafkajs@3.0.0
+```
+
+Ensure you are running Node.js 20 or later:
+
+```bash
+node --version  # must be >= v20.0.0
 ```
 
 No code changes required for existing producer/consumer usage. The client automatically negotiates compatible protocol versions with your Kafka brokers.
