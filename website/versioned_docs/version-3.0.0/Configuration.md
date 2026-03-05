@@ -1,6 +1,7 @@
 ---
-id: configuration
+id: version-3.0.0-configuration
 title: Client Configuration
+original_id: configuration
 ---
 
 The client must be configured with at least one broker. The brokers on the list are considered seed brokers and are only used to bootstrap the client and load initial metadata.
@@ -273,10 +274,51 @@ You can also programmatically retrieve the `aws:userid` for currently available 
 A complete breakdown can be found in the IAM User Guide's
 [Reference on Policy Variables](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_variables.html#policy-vars-infotouse).
 
+### GSSAPI (Kerberos) Example
+
+Kerberos (GSSAPI) authentication provides strong mutual authentication without transmitting passwords. This requires the optional `kerberos` npm package:
+
+```sh
+npm install kerberos
+```
+
+```javascript
+new Kafka({
+  clientId: 'my-app',
+  brokers: ['kafka1:9092', 'kafka2:9092'],
+  ssl: true,
+  sasl: {
+    mechanism: 'gssapi',
+    serviceName: 'kafka',                    // Kerberos service name (default: 'kafka')
+    principal: 'kafka-client@EXAMPLE.COM',   // Client principal
+    keytab: '/path/to/client.keytab',        // Path to keytab file
+  },
+})
+```
+
+| option                   | description                                                      | default   |
+| -------------------------| ---------------------------------------------------------------- | --------- |
+| serviceName              | The Kerberos service name                                        | `'kafka'` |
+| principal                | The client Kerberos principal                                    |           |
+| keytab                   | Path to the keytab file                                          |           |
+| kerberosServicePrincipal | Override the full service principal (e.g., `kafka/host@REALM`)   |           |
+
+**Broker configuration** (`server.properties`):
+
+```properties
+sasl.enabled.mechanisms=GSSAPI
+sasl.kerberos.service.name=kafka
+```
+
+**Prerequisites:**
+- A Kerberos KDC (Key Distribution Center) must be running
+- A keytab file or valid TGT must be available
+- Proper Kerberos configuration (`/etc/krb5.conf`)
+
 ### Use Encrypted Protocols
 
-It is **highly recommended** that you use SSL for encryption when using `PLAIN` or `AWS`,
-otherwise credentials will be transmitted in cleartext!
+It is **highly recommended** that you use SSL for encryption when using `PLAIN`, `AWS`, or `GSSAPI`,
+otherwise credentials or tokens will be transmitted in cleartext!
 
 ### Custom Authentication Mechanisms
 

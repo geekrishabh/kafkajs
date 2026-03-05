@@ -17,9 +17,14 @@
     "Examples": [
       "version-3.0.0-running-kafka-in-development",
       "version-3.0.0-producer-example",
-      "version-3.0.0-consumer-example"
+      "version-3.0.0-consumer-example",
+      "version-3.0.0-cdc-debezium",
+      "version-3.0.0-kafka-connect",
+      "version-3.0.0-kafka-streams"
     ],
-    "API Reference": [],
+    "API Reference": [
+      "version-3.0.0-api-reference"
+    ],
     "Migration Guides": [
       "version-3.0.0-migration-guide-v2.0.0",
       "version-3.0.0-migration-guide-v3.0.0"

@@ -1,6 +1,7 @@
 ---
-id: producing
+id: version-3.0.0-producing
 title: Producing Messages
+original_id: producing
 ---
 
 To publish messages to Kafka you have to create a producer. Simply call the `producer` function of the client to create it:
@@ -347,4 +348,55 @@ await producer.send({
         { key: 'key2', value: 'hey hey!' }
     ],
 })
+```
+
+## <a name="idempotent-producer"></a> Idempotent Producer
+
+Enabling idempotent producer ensures each message is written exactly once, avoiding duplicates caused by retries:
+
+```javascript
+const producer = kafka.producer({
+  idempotent: true,
+  maxInFlightRequests: 5,
+})
+```
+
+When `idempotent` is `true`, acks are automatically set to `-1` (all) and retries default to `MAX_SAFE_INTEGER`.
+
+## <a name="kraft-mode"></a> KRaft Mode (Kafka 4.0+)
+
+KafkaJS works identically with KRaft-based clusters (Kafka 4.0+). No code changes are required:
+
+```javascript
+const { Kafka, CompressionTypes, Partitioners } = require('kafkajs')
+
+const kafka = new Kafka({
+  brokers: ['localhost:9092'],
+  clientId: 'kraft-producer',
+})
+
+const producer = kafka.producer({
+  createPartitioner: Partitioners.DefaultPartitioner,
+  idempotent: true,
+})
+
+const run = async () => {
+  await producer.connect()
+
+  await producer.send({
+    topic: 'kraft-topic',
+    compression: CompressionTypes.GZIP,
+    messages: [
+      {
+        key: 'key-1',
+        value: JSON.stringify({ message: 'Hello from KRaft!' }),
+        headers: { source: 'kafkajs' },
+      },
+    ],
+  })
+
+  await producer.disconnect()
+}
+
+run().catch(console.error)
 ```

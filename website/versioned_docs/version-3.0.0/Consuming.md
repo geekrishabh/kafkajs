@@ -1,6 +1,7 @@
 ---
-id: consuming
+id: version-3.0.0-consuming
 title: Consuming Messages
+original_id: consuming
 ---
 
 Consumer groups allow a group of machines or processes to coordinate access to a list of topics, distributing the load among the consumers. When a consumer fails the load is automatically distributed to other members of the group. Consumer groups __must have__ unique group ids within the cluster, from a kafka broker perspective.
@@ -478,6 +479,130 @@ const data = await consumer.describeGroup()
 ## <a name="compression"></a> Compression
 
 KafkaJS only support GZIP natively, but [other codecs can be supported](Producing.md#compression-other).
+
+## <a name="dead-letter-queue"></a> Dead Letter Queue
+
+KafkaJS provides a `deadLetterQueue` utility that automatically retries failed messages and sends them to a dead letter topic after a configurable number of retries.
+
+```javascript
+const { Kafka, deadLetterQueue } = require('kafkajs')
+
+const kafka = new Kafka({
+  brokers: ['localhost:9092'],
+  clientId: 'my-app',
+})
+
+const producer = kafka.producer()
+const consumer = kafka.consumer({ groupId: 'order-processing-group' })
+
+const withDLQ = deadLetterQueue({
+  producer,
+  topic: 'orders.dlq',
+  maxRetries: 3,
+  onOriginalMessageFailed: async ({ topic, partition, message }, error) => {
+    console.warn('Message sent to DLQ', {
+      topic,
+      partition,
+      offset: message.offset,
+      error: error.message,
+    })
+  },
+})
+
+const run = async () => {
+  await producer.connect()
+  await consumer.connect()
+  await consumer.subscribe({ topics: ['orders'], fromBeginning: true })
+  await consumer.run({
+    eachMessage: withDLQ(async ({ topic, partition, message }) => {
+      const order = JSON.parse(message.value.toString())
+      if (!order.id) {
+        throw new Error('Order is missing an ID')
+      }
+      console.log('Order processed', { orderId: order.id })
+    }),
+  })
+}
+
+run().catch(e => console.error(e.message, e))
+```
+
+The `deadLetterQueue` function accepts the following options:
+
+| option                   | description                                                      | default |
+| -------------------------| ---------------------------------------------------------------- | ------- |
+| producer                 | A connected KafkaJS producer instance to send failed messages    |         |
+| topic                    | The dead letter topic name                                       |         |
+| maxRetries               | Number of retries before sending to the DLQ                      | `3`     |
+| onOriginalMessageFailed  | Async callback invoked when a message is sent to the DLQ         |         |
+
+## <a name="cdc"></a> Change Data Capture (CDC)
+
+KafkaJS can be used to consume Change Data Capture events from databases using connectors like [Debezium](https://debezium.io/). CDC events follow a standard envelope format with `before`, `after`, `op`, and `source` fields.
+
+### PostgreSQL CDC Example
+
+```javascript
+const { Kafka } = require('kafkajs')
+
+const kafka = new Kafka({
+  brokers: ['localhost:9092'],
+  clientId: 'cdc-postgres-consumer',
+})
+
+const consumer = kafka.consumer({ groupId: 'cdc-postgres-handler' })
+
+// Debezium topics follow: {topic.prefix}.{schema}.{table}
+const topics = ['dbserver1.public.customers', 'dbserver1.public.orders']
+
+const parseCDCEvent = message => {
+  const value = message.value ? JSON.parse(message.value.toString()) : null
+  const key = message.key ? JSON.parse(message.key.toString()) : null
+
+  if (!value) {
+    return { operation: 'tombstone', key, before: null, after: null }
+  }
+
+  const operationMap = { c: 'CREATE', u: 'UPDATE', d: 'DELETE', r: 'READ' }
+
+  return {
+    operation: operationMap[value.op] || value.op,
+    before: value.before,
+    after: value.after,
+    source: value.source,
+    timestamp: value.ts_ms,
+    key,
+  }
+}
+
+const run = async () => {
+  await consumer.connect()
+  await consumer.subscribe({ topics, fromBeginning: true })
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      const event = parseCDCEvent(message)
+      const tableName = topic.split('.').pop()
+
+      switch (event.operation) {
+        case 'CREATE':
+        case 'READ':
+          console.log(`[${tableName}] INSERT`, { data: event.after })
+          break
+        case 'UPDATE':
+          console.log(`[${tableName}] UPDATE`, { before: event.before, after: event.after })
+          break
+        case 'DELETE':
+          console.log(`[${tableName}] DELETE`, { deleted: event.before })
+          break
+      }
+    },
+  })
+}
+
+run().catch(e => console.error(e.message, e))
+```
+
+Debezium supports PostgreSQL, MySQL, MongoDB, and other databases. See the [Debezium documentation](https://debezium.io/documentation/) for connector setup.
 
 ## <a name="follower-fetching"></a> Follower Fetching
 
